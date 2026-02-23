@@ -48,7 +48,7 @@ class _HomeState extends State<Home> {
       setState(() {
         _currentTime = DateTime.now();
         _quoteSecondsCounter++;
-        if (_quoteSecondsCounter >= 30) {
+        if (_quoteSecondsCounter >= 20) {
           int nextQuote;
           do {
             nextQuote = Random().nextInt(quotes.length);
@@ -90,7 +90,7 @@ class _HomeState extends State<Home> {
       },
 
       child: Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: Colors.black,
 
         endDrawer: Drawer(
           child: Column(
@@ -101,26 +101,26 @@ class _HomeState extends State<Home> {
         ),
 
         appBar: AppBar(
-          backgroundColor: Colors.white,
+          backgroundColor: Colors.black,
           title: Container(
             alignment: Alignment.center,
             padding: const EdgeInsets.all(10),
             margin: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: Colors.black, // The color goes INSIDE the decoration
+              color: Colors.white, // The color goes INSIDE the decoration
               borderRadius: BorderRadius.circular(36),
             ),
             child: Text(
               "Hey There, Sir",
-              style: GoogleFonts.codystar(
-                fontWeight: FontWeight.w900,
-                color: Colors.white,
+              style: GoogleFonts.doto(
+                fontWeight: FontWeight.w700,
+                color: Colors.black,
               ),
             ),
           ),
           centerTitle: true,
           leading: IconButton(
-            icon: const Icon(Icons.window, size: 32),
+            icon: const Icon(Icons.window, size: 32, color: Colors.white),
             onPressed: () {
               showModalBottomSheet(
                 context: context,
@@ -147,7 +147,7 @@ class _HomeState extends State<Home> {
             Builder(
               builder: (context) {
                 return IconButton(
-                  icon: Icon(Icons.play_arrow_outlined),
+                  icon: Icon(Icons.play_arrow_outlined, color: Colors.white),
                   onPressed: () {
                     // This 'context' now knows about the Scaffold
                     Scaffold.of(context).openEndDrawer();
@@ -198,11 +198,11 @@ class _HomeState extends State<Home> {
 
                               fontWeight: FontWeight.w700,
                               color: Colors
-                                  .black, // Logic: White is better for layered UIs
+                                  .white, // Logic: White is better for layered UIs
                               shadows: const [
                                 Shadow(
                                   blurRadius: 15.0,
-                                  color: Colors.black,
+                                  color: Colors.white,
                                   offset: Offset(2, 2),
                                 ),
                               ],
@@ -217,11 +217,11 @@ class _HomeState extends State<Home> {
                               height: 1,
                               fontWeight: FontWeight.w700,
                               color: Colors
-                                  .black, // Logic: White is better for layered UIs
+                                  .white, // Logic: White is better for layered UIs
                               shadows: const [
                                 Shadow(
                                   blurRadius: 15.0,
-                                  color: Colors.black,
+                                  color: Colors.white,
                                   offset: Offset(2, 2),
                                 ),
                               ],
@@ -234,11 +234,11 @@ class _HomeState extends State<Home> {
                               fontSize: 20,
                               fontWeight: FontWeight.w400,
                               color: Colors
-                                  .black, // Logic: White is better for layered UIs
+                                  .white, // Logic: White is better for layered UIs
                               shadows: const [
                                 Shadow(
                                   blurRadius: 15.0,
-                                  color: Colors.black,
+                                  color: Colors.white,
                                   offset: Offset(2, 2),
                                 ),
                               ],
@@ -258,7 +258,7 @@ class _HomeState extends State<Home> {
                                   quotes[_selectedQuote],
                                   textStyle: GoogleFonts.tiroDevanagariHindi(
                                     fontSize: 20,
-                                    color: Colors.black,
+                                    color: Colors.white,
                                   ),
                                   textAlign: TextAlign.end,
                                   duration: const Duration(seconds: 5),
