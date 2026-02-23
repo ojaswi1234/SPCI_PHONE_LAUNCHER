@@ -60,18 +60,6 @@ class _HomeState extends State<Home> {
         }
       });
     });
-
-    _searchController.addListener(() {
-      final query = _searchController.text.toLowerCase();
-      setState(() {
-        // Logic: filter the master list into the display list
-        _filteredApps = _installedApps.where((app) {
-          final name = app.name.toLowerCase();
-          // Logic: Matches if the name contains the query string
-          return name.contains(query);
-        }).toList();
-      });
-    });
   }
 
   Future<void> _fetchInstalledApps() async {
@@ -82,7 +70,6 @@ class _HomeState extends State<Home> {
     );
     setState(() {
       _installedApps = apps;
-      _filteredApps = apps;
     });
   }
 
@@ -306,86 +293,126 @@ class _HomeState extends State<Home> {
       children: [
         TextField(
           controller: _searchController,
-          style: GoogleFonts.firaCode(color: Colors.white, fontSize: 14),
-          decoration: InputDecoration(
+          style: GoogleFonts.firaCode(color: Colors.black, fontSize: 17),
+          decoration: const InputDecoration(
+            filled: true,
+            fillColor: Colors.white,
             hintText: "Search apps or web...",
-            hintStyle: TextStyle(color: Colors.white54),
-            prefixIcon: Icon(Icons.search, color: Colors.white, size: 20),
+            hintStyle: TextStyle(color: Colors.grey),
+            prefixIcon: Icon(Icons.search, color: Colors.black, size: 20),
             border: InputBorder.none,
-            contentPadding: EdgeInsets.symmetric(vertical: 10),
+            contentPadding: EdgeInsets.symmetric(vertical: 15),
           ),
           onSubmitted: (value) {
             // Logic: Trigger your search function here
           },
         ),
-        Expanded(
-          child: ListView.builder(
-            itemCount: _filteredApps.length,
-            itemBuilder: (context, index) {
-              final app = _installedApps[index];
-              return ListTile(
-                leading: app.icon != null
-                    ? Image.memory(app.icon!, width: 40)
-                    : const Icon(Icons.android, color: Colors.green),
-                title: Text(
-                  app.name,
-                  style: const TextStyle(color: Colors.white),
-                ),
-                onTap: () => InstalledApps.startApp(app.packageName),
-                onLongPress: () => showDialog(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: Text(
-                      'App Action',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    content: Text(
-                      'What do you want to do with ${app.name}?',
-                      textAlign: TextAlign.center,
-                    ),
-                    actions: [
-                      Column(
-                        children: [
-                          TextButton(
-                            onPressed: () =>
-                                InstalledApps.uninstallApp(app.packageName),
-                            child: Text("Uninstall"),
-                            style: TextButton.styleFrom(
-                              foregroundColor: Colors.white,
-                              backgroundColor: Colors.black,
-                              padding: EdgeInsets.symmetric(
-                                horizontal: 20,
-                                vertical: 10,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                            ),
-                          ),
-                          Divider(color: Colors.grey),
-                          TextButton(
-                            onPressed: () =>
-                                InstalledApps.openSettings(app.packageName),
+        const SizedBox(height: 20),
 
-                            style: TextButton.styleFrom(
-                              foregroundColor: Colors.white,
-                              backgroundColor: Colors.black,
-                              padding: EdgeInsets.symmetric(
-                                horizontal: 20,
-                                vertical: 10,
+        // LOGIC FIX: ValueListenableBuilder intercepts keystrokes in real-time
+        Expanded(
+          child: ValueListenableBuilder<TextEditingValue>(
+            valueListenable: _searchController,
+            builder: (context, value, child) {
+              // 1. Get the current typed text
+              final query = value.text.toLowerCase().trim();
+
+              // 2. Filter the master list locally right before drawing
+              final currentFilteredApps = _installedApps.where((app) {
+                return app.name.toLowerCase().contains(query);
+              }).toList();
+
+              // 3. Handle the "Empty State" (No apps found)
+              if (currentFilteredApps.isEmpty) {
+                return Center(
+                  child: Text(
+                    "No binary found. Search Web?",
+                    // Made it white so you can actually see it on the black bottom sheet!
+                    style: GoogleFonts.inconsolata(
+                      color: Colors.white,
+                      fontSize: 18,
+                    ),
+                  ),
+                );
+              }
+
+              // 4. Draw the List using the newly filtered array
+              return ListView.builder(
+                itemCount:
+                    currentFilteredApps.length, // Logic: Use real-time length
+                itemBuilder: (context, index) {
+                  final app =
+                      currentFilteredApps[index]; // Logic: Use real-time item
+
+                  // YOUR EXACT LIST TILE AND DIALOG LOGIC REMAINS INTACT BELOW
+                  return ListTile(
+                    leading: app.icon != null
+                        ? Image.memory(app.icon!, width: 40)
+                        : const Icon(Icons.android, color: Colors.green),
+                    title: Text(
+                      app.name,
+                      style: GoogleFonts.firaCode(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                      ),
+                    ),
+                    onTap: () => InstalledApps.startApp(app.packageName),
+                    onLongPress: () => showDialog(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: const Text(
+                          'App Action',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        content: Text(
+                          'What do you want to do with ${app.name}?',
+                          textAlign: TextAlign.center,
+                        ),
+                        actions: [
+                          Column(
+                            children: [
+                              TextButton(
+                                onPressed: () =>
+                                    InstalledApps.uninstallApp(app.packageName),
+                                style: TextButton.styleFrom(
+                                  foregroundColor: Colors.white,
+                                  backgroundColor: Colors.black,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 20,
+                                    vertical: 10,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                                child: const Text("Uninstall"),
                               ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
+                              const Divider(color: Colors.grey),
+                              TextButton(
+                                onPressed: () =>
+                                    InstalledApps.openSettings(app.packageName),
+                                style: TextButton.styleFrom(
+                                  foregroundColor: Colors.white,
+                                  backgroundColor: Colors.black,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 20,
+                                    vertical: 10,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                                child: const Text("App info"),
                               ),
-                            ),
-                            child: Text("App info"),
+                            ],
                           ),
                         ],
                       ),
-                    ],
-                  ),
-                ),
+                    ),
+                  );
+                },
               );
             },
           ),
