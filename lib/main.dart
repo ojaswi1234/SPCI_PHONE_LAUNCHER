@@ -1,10 +1,13 @@
 import 'dart:async';
+import 'dart:ffi';
+import 'dart:io';
 import 'dart:math';
 import 'package:animated_text_kit/animated_text_kit.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:installed_apps/app_info.dart';
 import 'package:installed_apps/installed_apps.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class Home extends StatefulWidget {
   const Home({super.key});
@@ -19,10 +22,12 @@ void main() {
 
 class _HomeState extends State<Home> {
   List<AppInfo> _installedApps = [];
-  List<AppInfo> _filteredApps = [];
+  final List<AppInfo> _filteredApps = [];
   late Timer _timer;
   DateTime _currentTime = DateTime.now();
   final TextEditingController _searchController = TextEditingController();
+  final TextEditingController _musicsearchController = TextEditingController();
+  String _currentSong = "System Idle";
 
   List<String> quotes = [
     "भाग्य उनका साथ देता है जो कठिन परिस्थितियों में भी अपने लक्ष्य के प्रति अडिग रहते हैं।", // Luck favors the persistent.
@@ -38,11 +43,42 @@ class _HomeState extends State<Home> {
   int _selectedQuote = 0;
   int _quoteSecondsCounter = 0;
 
+  Future<void> _readPlayerStatus() async {
+    try {
+      final file = File('/storage/emulated/0/spci_status.txt');
+      if (await file.exists()) {
+        final song = await file.readAsString();
+        // Only update state if the text actually changed (saves battery)
+        if (mounted && song.trim() != _currentSong) {
+          setState(() {
+            _currentSong = song.trim();
+          });
+        }
+      }
+    } catch (e) {
+      // Fail silently if file is busy
+    }
+  }
+
+  Future<void> _clearStaleCommands() async {
+    final file = File('/storage/emulated/0/launcher_cmd.txt');
+    try {
+      if (await file.exists()) {
+        await file.delete();
+        print("Purple Team Protocol: Stale command file purged.");
+      }
+    } catch (e) {
+      // Logic: If this fails, it's likely because permissions aren't granted yet.
+      // We fail silently so the app still launches smoothly.
+      print("Startup Cleanup Skipped: Storage permission missing.");
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     _fetchInstalledApps();
-
+    _clearStaleCommands();
     // Logic: Re-run every second to keep time accurate
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       setState(() {
@@ -59,6 +95,7 @@ class _HomeState extends State<Home> {
           _quoteSecondsCounter = 0;
         }
       });
+      _readPlayerStatus();
     });
   }
 
@@ -71,6 +108,39 @@ class _HomeState extends State<Home> {
     setState(() {
       _installedApps = apps;
     });
+  }
+
+  // Logic: Writes commands to the shared file
+  Future<void> _sendMusicCommand(String cmd) async {
+    // 1. Logic: Check if we have "Manage External Storage" permission
+    var status = await Permission.manageExternalStorage.status;
+
+    // 2. Logic: If not granted, request it
+    if (!status.isGranted) {
+      status = await Permission.manageExternalStorage.request();
+    }
+
+    // 3. Logic: If STILL not granted, send user to settings
+    if (!status.isGranted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Permission Required: Enable 'All Files Access'"),
+          action: SnackBarAction(
+            label: 'SETTINGS',
+            onPressed: openAppSettings, // Opens the specific settings page
+          ),
+        ),
+      );
+      return;
+    }
+
+    // 4. Logic: Permission is good! Write the file.
+    try {
+      final file = File('/storage/emulated/0/launcher_cmd.txt');
+      await file.writeAsString(cmd);
+    } catch (e) {
+      print("File Error: $e");
+    }
   }
 
   @override
@@ -93,13 +163,215 @@ class _HomeState extends State<Home> {
         backgroundColor: Colors.black,
 
         endDrawer: Drawer(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [Text("Music Player is in Development")],
+          backgroundColor: Colors.black, // Cyber-Security Aesthetic
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 50),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 1. HEADER
+                Center(
+                  child: Text(
+                    "TERMINAL AUDIO",
+                    style: GoogleFonts.orbitron(
+                      color: Colors.lightGreen,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 2,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 30),
+
+                // 2. "NOW PLAYING" WIDGET (With Auto-Trim Logic)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 15,
+                    horizontal: 20,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.05),
+                    borderRadius: BorderRadius.circular(15),
+                    border: Border.all(color: Colors.green.withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      // Animated-style Icon
+                      const Icon(
+                        Icons.graphic_eq,
+                        color: Colors.greenAccent,
+                        size: 28,
+                      ),
+                      const SizedBox(width: 15),
+
+                      // LOGIC: Expanded forces text to stay inside width
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "NOW PLAYING",
+                              style: GoogleFonts.firaCode(
+                                color: Colors.grey,
+                                fontSize: 10,
+                                letterSpacing: 1.5,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            // The Song Name (Reads from your _currentSong variable)
+                            Text(
+                              _currentSong,
+                              style: GoogleFonts.firaCode(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              maxLines: 1, // Logic: Force single line
+                              overflow: TextOverflow
+                                  .ellipsis, // Logic: Trims with "..."
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 30),
+
+                // 3. SONG INPUT FIELD
+                Text(
+                  " // COMMAND INPUT",
+                  style: GoogleFonts.firaCode(color: Colors.grey, fontSize: 12),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  style: GoogleFonts.firaCode(color: Colors.white),
+                  cursorColor: Colors.lightGreenAccent,
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: Colors.white.withOpacity(0.08),
+                    hintText: "Type song name...",
+                    hintStyle: TextStyle(color: Colors.grey.withOpacity(0.5)),
+                    prefixIcon: const Icon(
+                      Icons.terminal,
+                      color: Colors.lightGreenAccent,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide.none,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(
+                        color: Colors.white.withOpacity(0.1),
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: Colors.green),
+                    ),
+                  ),
+                  onSubmitted: (value) {
+                    if (value.isNotEmpty) {
+                      // Logic: Sends "play [song name]" to your Python Bridge
+                      _sendMusicCommand("play $value");
+                      Navigator.pop(context); // Optional: Close drawer on enter
+                    }
+                  },
+                ),
+
+                const SizedBox(height: 30),
+
+                // 4. CONTROL BUTTONS (Row)
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    // REPEAT TOGGLE (Green)
+                    Column(
+                      children: [
+                        IconButton(
+                          icon: const Icon(
+                            Icons.repeat,
+                            color: Colors.greenAccent,
+                            size: 30,
+                          ),
+                          onPressed: () =>
+                              _sendMusicCommand("repeat"), // Sends 'r'
+                        ),
+                        Text(
+                          "LOOP",
+                          style: GoogleFonts.firaCode(
+                            color: Colors.grey,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    // STOP / PAUSE (Red)
+                    Column(
+                      children: [
+                        IconButton(
+                          icon: const Icon(
+                            Icons.stop_circle,
+                            color: Colors.redAccent,
+                            size: 50,
+                          ),
+                          onPressed: () =>
+                              _sendMusicCommand("stop"), // Sends Ctrl+C
+                        ),
+                        Text(
+                          "STOP",
+                          style: GoogleFonts.firaCode(
+                            color: Colors.redAccent,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    // KILL SESSION (Grey)
+                    Column(
+                      children: [
+                        IconButton(
+                          icon: const Icon(
+                            Icons.power_settings_new,
+                            color: Colors.grey,
+                            size: 30,
+                          ),
+                          onPressed: () =>
+                              _sendMusicCommand("kill"), // Kills tmux session
+                        ),
+                        Text(
+                          "KILL",
+                          style: GoogleFonts.firaCode(
+                            color: Colors.grey,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+
+                const Spacer(),
+
+                // 5. FOOTER STATUS
+                Center(
+                  child: Text(
+                    "BRIDGE STATUS: ACTIVE [TMUX]",
+                    style: GoogleFonts.firaCode(
+                      color: Colors.greenAccent.withOpacity(0.5),
+                      fontSize: 10,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
-
         appBar: AppBar(
           backgroundColor: Colors.black,
           title: Container(
