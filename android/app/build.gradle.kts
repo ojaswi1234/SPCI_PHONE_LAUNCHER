@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.myapp"
+    namespace = "com.ojb.spci"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -20,17 +20,14 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.myapp"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
+        applicationId = "com.ojb.spci"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         ndk {
-        abiFilters.addAll(listOf("armeabi-v7a", "arm64-v8a", "x86_64", "x86"))
-    }
+            abiFilters.addAll(listOf("armeabi-v7a", "arm64-v8a", "x86_64", "x86"))
+        }
     }
     
 

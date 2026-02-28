@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'dart:io';
 import 'dart:math';
 import 'package:animated_text_kit/animated_text_kit.dart';
@@ -8,6 +9,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:installed_apps/app_info.dart';
 import 'package:installed_apps/installed_apps.dart';
 import 'package:marquee/marquee.dart';
+import 'package:notification_listener_service/notification_event.dart';
+import 'package:notification_listener_service/notification_listener_service.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 class Home extends StatefulWidget {
@@ -18,67 +21,153 @@ class Home extends StatefulWidget {
 }
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const MaterialApp(debugShowCheckedModeBanner: false, home: Home()));
 }
 
 class _HomeState extends State<Home> {
   List<AppInfo> _installedApps = [];
-  final List<AppInfo> _filteredApps = [];
   late Timer _timer;
   DateTime _currentTime = DateTime.now();
   final TextEditingController _searchController = TextEditingController();
-  final TextEditingController _musicsearchController = TextEditingController();
   String _currentSong = "System Idle";
-
   bool _isSearching = false;
+  final List<ServiceNotificationEvent> _liveNotifications = [];
+  int _notificationCount = 0;
 
   List<String> quotes = [
-    "भाग्य उनका साथ देता है जो कठिन परिस्थितियों में भी अपने लक्ष्य के प्रति अडिग रहते हैं।", // Luck favors the persistent.
-    "आलस्य में दरिद्रता का वास होता है, और प्रयास में सफलता का।", // Poverty lives in laziness; success in effort.
-    "एक बार काम शुरू करने के बाद, असफलता से डरो मत और उसे छोड़ो मत।", // Once started, don't fear failure or abandon it.
-    "बिना अभ्यास के ज्ञान विष के समान है।", // Knowledge without practice is like poison.
-    "संकट आने से पहले ही उससे सावधान रहना चाहिए, और आने पर उस पर प्रहार कर उसे नष्ट कर देना चाहिए।", // Attack fear when it nears.
-    "दूसरों की गलतियों से सीखें, आप खुद सारी गलतियां करने के लिए पर्याप्त लंबे समय तक नहीं जी सकते।", // Learn from others' mistakes.
-    "जो व्यक्ति अपना लक्ष्य निर्धारित नहीं कर सकता, वह कभी विजयी नहीं हो सकता।", // One without goals cannot win.
-    "ऋण, शत्रु और रोग को कभी छोटा नहीं समझना चाहिए, इन्हें जड़ से समाप्त करना ही उचित है।", // Don't underestimate debt, enemies, or disease.
-    "मनुष्य अपने कर्मों से महान बनता है, अपने जन्म से नहीं।", // Greatness comes from deeds, not birth.
+    "भाग्य उनका साथ देता है जो कठिन परिस्थितियों में भी अपने लक्ष्य के प्रति अडिग रहते हैं।",
+    "आलस्य में दरिद्रता का वास होता है, और प्रयास में सफलता का।",
+    "एक बार काम शुरू करने के बाद, असफलता से डरो मत और उसे छोड़ो मत।",
+    "बिना अभ्यास के ज्ञान विष के समान है।",
+    "संकट आने से पहले ही उससे सावधान रहना चाहिए, और आने पर उस पर प्रहार कर उसे नष्ट कर देना चाहिए।",
+    "दूसरों की गलतियों से सीखें, आप खुद सारी गलतियां करने के लिए पर्याप्त लंबे समय तक नहीं जी सकते।",
+    "जो व्यक्ति अपना लक्ष्य निर्धारित नहीं कर सकता, वह कभी विजयी नहीं हो सकता।",
+    "ऋण, शत्रु और रोग को कभी छोटा नहीं समझना चाहिए, इन्हें जड़ से समाप्त करना ही उचित है।",
+    "मनुष्य अपने कर्मों से महान बनता है, अपने जन्म से नहीं।",
   ];
   int _selectedQuote = 0;
   int _quoteSecondsCounter = 0;
-
   bool isRepeat = false;
+
+  Future<void> _initNotificationListener() async {
+    try {
+      bool isPermissionGranted =
+          await NotificationListenerService.isPermissionGranted();
+      developer.log(
+        'Notification permission status: $isPermissionGranted',
+        name: 'NotificationService',
+      );
+
+      if (!isPermissionGranted) {
+        developer.log(
+          'Requesting notification permission...',
+          name: 'NotificationService',
+        );
+        await NotificationListenerService.requestPermission();
+        // After requesting, check again. If still not granted, exit the function.
+        isPermissionGranted =
+            await NotificationListenerService.isPermissionGranted();
+        if (!isPermissionGranted) {
+          developer.log(
+            'Notification permission not granted after request.',
+            name: 'NotificationService',
+            level: 900,
+          );
+          return;
+        }
+      }
+
+      NotificationListenerService.notificationsStream.listen((event) {
+        if (mounted) {
+          setState(() {
+            _liveNotifications.insert(0, event);
+            _notificationCount = _liveNotifications.length;
+          });
+        }
+      });
+    } catch (e, s) {
+      developer.log(
+        'Error initializing notification listener',
+        name: 'NotificationService',
+        error: e,
+        stackTrace: s,
+      );
+    }
+  }
 
   Future<void> _readPlayerStatus() async {
     try {
       final file = File('/storage/emulated/0/spci_status.txt');
       if (await file.exists()) {
         final song = await file.readAsString();
-        // Only update state if the text actually changed (saves battery)
         if (mounted && song.trim() != _currentSong) {
           setState(() {
             _currentSong = song.trim();
-            // Add this near your other variables
             _isSearching = false;
           });
         }
       }
-    } catch (e) {
-      // Fail silently if file is busy
+    } catch (e, s) {
+      developer.log(
+        'Error reading player status file',
+        name: 'FileIO',
+        error: e,
+        stackTrace: s,
+      );
     }
   }
 
   Future<void> _clearStaleCommands() async {
-    final file = File('/storage/emulated/0/launcher_cmd.txt');
     try {
+      final file = File('/storage/emulated/0/launcher_cmd.txt');
       if (await file.exists()) {
         await file.delete();
-        print("Purple Team Protocol: Stale command file purged.");
+        developer.log("Stale command file purged.", name: 'FileIO');
       }
-    } catch (e) {
-      // Logic: If this fails, it's likely because permissions aren't granted yet.
-      // We fail silently so the app still launches smoothly.
-      print("Startup Cleanup Skipped: Storage permission missing.");
+    } catch (e, s) {
+      developer.log(
+        "Error clearing stale commands",
+        name: 'FileIO',
+        error: e,
+        stackTrace: s,
+      );
     }
+  }
+
+  Widget _buildAnimatedBadge() {
+    return GestureDetector(
+      onTap: _showNotificationsPopup,
+      child: Container(
+        key: const ValueKey("badge_container"),
+        margin: const EdgeInsets.all(4),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.black,
+          borderRadius: BorderRadius.circular(30),
+        ),
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 300),
+          transitionBuilder: (Widget child, Animation<double> animation) {
+            return SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0.0, 0.5),
+                end: Offset.zero,
+              ).animate(animation),
+              child: FadeTransition(opacity: animation, child: child),
+            );
+          },
+          child: Text(
+            "$_notificationCount",
+            key: ValueKey(_notificationCount),
+            style: GoogleFonts.firaCode(
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -86,97 +175,149 @@ class _HomeState extends State<Home> {
     super.initState();
     _fetchInstalledApps();
     _clearStaleCommands();
-    // Logic: Re-run every second to keep time accurate
+    _initNotificationListener();
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      setState(() {
-        _currentTime = DateTime.now();
-        _quoteSecondsCounter++;
-        if (_quoteSecondsCounter >= 20) {
-          int nextQuote;
-          do {
-            nextQuote = Random().nextInt(quotes.length);
-          } while (nextQuote ==
-              _selectedQuote); // Keep picking if it's the same one
-
-          _selectedQuote = nextQuote;
-          _quoteSecondsCounter = 0;
-        }
-      });
+      if (mounted) {
+        setState(() {
+          _currentTime = DateTime.now();
+          _quoteSecondsCounter++;
+          if (_quoteSecondsCounter >= 20) {
+            int nextQuote;
+            do {
+              nextQuote = Random().nextInt(quotes.length);
+            } while (nextQuote == _selectedQuote);
+            _selectedQuote = nextQuote;
+            _quoteSecondsCounter = 0;
+          }
+        });
+      }
       _readPlayerStatus();
     });
   }
 
-  Future<void> _fetchInstalledApps() async {
-    final apps = await InstalledApps.getInstalledApps(
-      excludeSystemApps: false,
-      excludeNonLaunchableApps: true,
-      withIcon: true,
-    );
-    setState(() {
-      _installedApps = apps;
-    });
-  }
-
-  // Logic: Writes commands to the shared file
-  Future<void> _sendMusicCommand(String cmd) async {
-    // 1. Logic: Check if we have "Manage External Storage" permission
-    var status = await Permission.manageExternalStorage.status;
-
-    // 2. Logic: If not granted, request it
-    if (!status.isGranted) {
-      status = await Permission.manageExternalStorage.request();
-    }
-
-    // 3. Logic: If STILL not granted, send user to settings
-    if (!status.isGranted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Permission Required: Enable 'All Files Access'"),
-          action: SnackBarAction(
-            label: 'SETTINGS',
-            onPressed: openAppSettings, // Opens the specific settings page
+  void _showNotificationsPopup() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.black87,
+        title: Text(
+          "SYSTEM LOGS",
+          style: GoogleFonts.firaCode(color: Colors.lightGreenAccent),
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          height: 300,
+          child: ListView.builder(
+            itemCount: _liveNotifications.length,
+            itemBuilder: (context, index) {
+              final notif = _liveNotifications[index];
+              return ListTile(
+                title: Text(
+                  notif.packageName ?? "Unknown",
+                  style: GoogleFonts.firaCode(color: Colors.grey, fontSize: 10),
+                ),
+                subtitle: Text(
+                  notif.content ?? "No content",
+                  style: GoogleFonts.firaCode(color: Colors.white),
+                ),
+              );
+            },
           ),
         ),
-      );
-      return;
-    }
+        actions: [
+          TextButton(
+            onPressed: () {
+              if (mounted) {
+                setState(() {
+                  _liveNotifications.clear();
+                  _notificationCount = 0;
+                });
+              }
+              Navigator.pop(context);
+            },
+            child: const Text(
+              "CLEAR LOGS",
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-    // 4. Logic: Permission is good! Write the file.
+  Future<void> _fetchInstalledApps() async {
     try {
+      final apps = await InstalledApps.getInstalledApps(
+        excludeSystemApps: false,
+        excludeNonLaunchableApps: true,
+      );
+      if (mounted) {
+        setState(() => _installedApps = apps);
+      }
+    } catch (e, s) {
+      developer.log(
+        'Error fetching installed apps',
+        name: 'InstalledApps',
+        error: e,
+        stackTrace: s,
+      );
+    }
+  }
+
+  Future<void> _sendMusicCommand(String cmd) async {
+    try {
+      var status = await Permission.manageExternalStorage.status;
+      if (!status.isGranted) {
+        status = await Permission.manageExternalStorage.request();
+      }
+      if (!status.isGranted) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Permission Required: Enable 'All Files Access'"),
+              action: SnackBarAction(
+                label: 'SETTINGS',
+                onPressed: openAppSettings,
+              ),
+            ),
+          );
+        }
+        return;
+      }
       final file = File('/storage/emulated/0/launcher_cmd.txt');
       await file.writeAsString(cmd);
-    } catch (e) {
-      print("File Error: $e");
+    } catch (e, s) {
+      developer.log(
+        'Error sending music command',
+        name: 'FileIO',
+        error: e,
+        stackTrace: s,
+      );
     }
   }
 
   @override
   void dispose() {
-    _timer.cancel(); // Logic: Important to prevent memory leaks!
+    _timer.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: false, // Prevents the back button from closing the launcher
-      onPopInvokedWithResult: (didPop, result) {
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
         if (didPop) return;
-        // Logic: If you have a sidebar or bottom sheet open,
-        // you could close it here instead of exiting.
       },
-
       child: Scaffold(
         backgroundColor: Colors.black,
-
         endDrawer: Drawer(
-          backgroundColor: Colors.black, // Cyber-Security Aesthetic
+          backgroundColor: Colors.black,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 50),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 1. HEADER
                 Center(
                   child: Text(
                     "TERMINAL AUDIO",
@@ -189,29 +330,24 @@ class _HomeState extends State<Home> {
                   ),
                 ),
                 const SizedBox(height: 30),
-
-                // 2. "NOW PLAYING" WIDGET (With Auto-Trim Logic)
                 Container(
                   padding: const EdgeInsets.symmetric(
                     vertical: 15,
                     horizontal: 20,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.05),
+                    color: Colors.white.withAlpha(13),
                     borderRadius: BorderRadius.circular(15),
-                    border: Border.all(color: Colors.green.withOpacity(0.3)),
+                    border: Border.all(color: Colors.green.withAlpha(77)),
                   ),
                   child: Row(
                     children: [
-                      // Animated-style Icon
                       const Icon(
                         Icons.graphic_eq,
                         color: Colors.greenAccent,
                         size: 28,
                       ),
                       const SizedBox(width: 15),
-
-                      // LOGIC: Expanded forces text to stay inside width
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -225,7 +361,6 @@ class _HomeState extends State<Home> {
                               ),
                             ),
                             const SizedBox(height: 4),
-                            // The Song Name (Reads from your _currentSong variable)
                             Text(
                               _currentSong,
                               style: GoogleFonts.firaCode(
@@ -233,9 +368,8 @@ class _HomeState extends State<Home> {
                                 fontSize: 14,
                                 fontWeight: FontWeight.w600,
                               ),
-                              maxLines: 1, // Logic: Force single line
-                              overflow: TextOverflow
-                                  .ellipsis, // Logic: Trims with "..."
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ],
                         ),
@@ -244,8 +378,6 @@ class _HomeState extends State<Home> {
                   ),
                 ),
                 const SizedBox(height: 30),
-
-                // 3. SONG INPUT FIELD
                 Text(
                   " // COMMAND INPUT",
                   style: GoogleFonts.firaCode(color: Colors.grey, fontSize: 12),
@@ -256,9 +388,9 @@ class _HomeState extends State<Home> {
                   cursorColor: Colors.lightGreenAccent,
                   decoration: InputDecoration(
                     filled: true,
-                    fillColor: Colors.white.withOpacity(0.08),
+                    fillColor: Colors.white.withAlpha(20),
                     hintText: "Type song name...",
-                    hintStyle: TextStyle(color: Colors.grey.withOpacity(0.5)),
+                    hintStyle: TextStyle(color: Colors.grey.withAlpha(128)),
                     prefixIcon: const Icon(
                       Icons.terminal,
                       color: Colors.lightGreenAccent,
@@ -269,9 +401,7 @@ class _HomeState extends State<Home> {
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide(
-                        color: Colors.white.withOpacity(0.1),
-                      ),
+                      borderSide: BorderSide(color: Colors.white.withAlpha(26)),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
@@ -280,21 +410,16 @@ class _HomeState extends State<Home> {
                   ),
                   onSubmitted: (value) {
                     if (value.isNotEmpty) {
-                      // Logic: Sends "play [song name]" to your Python Bridge
-                      setState(() => _isSearching = true);
+                      if (mounted) setState(() => _isSearching = true);
                       _sendMusicCommand("play $value");
-                      Navigator.pop(context); // Optional: Close drawer on enter
+                      Navigator.pop(context);
                     }
                   },
                 ),
-
                 const SizedBox(height: 30),
-
-                // 4. CONTROL BUTTONS (Row)
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
-                    // REPEAT TOGGLE (Green)
                     Column(
                       children: [
                         IconButton(
@@ -305,9 +430,7 @@ class _HomeState extends State<Home> {
                           ),
                           onPressed: () {
                             _sendMusicCommand("repeat");
-                            setState(() {
-                              isRepeat = !isRepeat;
-                            });
+                            if (mounted) setState(() => isRepeat = !isRepeat);
                           },
                         ),
                         Text(
@@ -319,8 +442,6 @@ class _HomeState extends State<Home> {
                         ),
                       ],
                     ),
-
-                    // STOP / PAUSE (Red)
                     Column(
                       children: [
                         IconButton(
@@ -329,8 +450,7 @@ class _HomeState extends State<Home> {
                             color: Colors.redAccent,
                             size: 50,
                           ),
-                          onPressed: () =>
-                              _sendMusicCommand("stop"), // Sends Ctrl+C
+                          onPressed: () => _sendMusicCommand("stop"),
                         ),
                         Text(
                           "STOP",
@@ -341,8 +461,6 @@ class _HomeState extends State<Home> {
                         ),
                       ],
                     ),
-
-                    // KILL SESSION (Grey)
                     Column(
                       children: [
                         IconButton(
@@ -351,8 +469,7 @@ class _HomeState extends State<Home> {
                             color: Colors.grey,
                             size: 30,
                           ),
-                          onPressed: () =>
-                              _sendMusicCommand("kill"), // Kills tmux session
+                          onPressed: () => _sendMusicCommand("kill"),
                         ),
                         Text(
                           "KILL",
@@ -365,15 +482,12 @@ class _HomeState extends State<Home> {
                     ),
                   ],
                 ),
-
                 const Spacer(),
-
-                // 5. FOOTER STATUS
                 Center(
                   child: Text(
                     "BRIDGE STATUS: ACTIVE [TMUX]",
                     style: GoogleFonts.firaCode(
-                      color: Colors.greenAccent.withOpacity(0.5),
+                      color: Colors.greenAccent.withAlpha(128),
                       fontSize: 10,
                       letterSpacing: 1,
                     ),
@@ -387,45 +501,27 @@ class _HomeState extends State<Home> {
           backgroundColor: Colors.black,
           title: GestureDetector(
             onTap: () {
-              setState(() => _isSearching = true);
+              if (mounted) setState(() => _isSearching = true);
               _sendMusicCommand("play");
             },
             child: Container(
-              // 1. Give the Master Pill a strict size so the AppBar doesn't crash
               height: 45,
-              width:
-                  MediaQuery.of(context).size.width *
-                  0.65, // Takes up 65% of screen width safely
+              width: MediaQuery.of(context).size.width * 0.65,
               decoration: BoxDecoration(
-                color: Colors
-                    .white, // Color goes INSIDE decoration if decoration is used!
+                color: Colors.white,
                 borderRadius: BorderRadius.circular(36),
               ),
               child: Row(
                 children: [
-                  // 2. THE BADGE (Nested inside the white pill with a nice margin)
-                  Container(
-                    margin: const EdgeInsets.all(
-                      4,
-                    ), // Gives it a nice gap from the edges
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: Colors.black,
-                      borderRadius: BorderRadius.circular(30),
-                    ),
-                    child: Text(
-                      "10",
-                      style: GoogleFonts.firaCode(
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                      ),
-                    ),
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 500),
+                    transitionBuilder:
+                        (Widget child, Animation<double> animation) =>
+                            ScaleTransition(scale: animation, child: child),
+                    child: _notificationCount <= 1
+                        ? const SizedBox.shrink()
+                        : _buildAnimatedBadge(),
                   ),
-
-                  // 3. THE MAIN STATUS AREA
-                  // Because the parent Container has a strict width (65% of screen),
-                  // Expanded is now 100% safe to use here.
                   Expanded(
                     child: ClipRRect(
                       borderRadius: const BorderRadius.only(
@@ -443,7 +539,7 @@ class _HomeState extends State<Home> {
                                 const SizedBox(width: 10),
                                 Text(
                                   "FETCHING...",
-                                  style: GoogleFonts.doto(
+                                  style: GoogleFonts.firaCode(
                                     fontWeight: FontWeight.w700,
                                     color: Colors.black,
                                   ),
@@ -454,10 +550,9 @@ class _HomeState extends State<Home> {
                                 (_currentSong == "Offline") ||
                                 (_currentSong == "Stopped"))
                           ? Center(
-                              // Keeps text centered in the remaining space
                               child: Text(
                                 "Hey There, Sir",
-                                style: GoogleFonts.doto(
+                                style: GoogleFonts.firaCode(
                                   fontWeight: FontWeight.w700,
                                   color: Colors.black,
                                 ),
@@ -465,7 +560,7 @@ class _HomeState extends State<Home> {
                             )
                           : Marquee(
                               text: '$_currentSong ..... ',
-                              style: GoogleFonts.doto(
+                              style: GoogleFonts.firaCode(
                                 fontWeight: FontWeight.w700,
                                 color: Colors.black,
                               ),
@@ -481,43 +576,33 @@ class _HomeState extends State<Home> {
               ),
             ),
           ),
-
           centerTitle: true,
           leading: IconButton(
             icon: const Icon(Icons.window, size: 32, color: Colors.white),
             onPressed: () {
               showModalBottomSheet(
                 context: context,
-                isScrollControlled:
-                    true, // Logic: Allows the sheet to go full-screen
-                backgroundColor: Colors.black, // Matches your tech theme
+                isScrollControlled: true,
+                backgroundColor: Colors.black,
                 shape: const RoundedRectangleBorder(
                   borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
                 ),
-                builder: (BuildContext context) {
-                  // Logic: This is the actual Widget Builder
-                  return SizedBox(
-                    height:
-                        MediaQuery.of(context).size.height *
-                        0.8, // 80% of screen
-                    child:
-                        _buildAppList(), // Logic: Calling a separate UI builder function
-                  );
-                },
+                builder: (BuildContext context) => SizedBox(
+                  height: MediaQuery.of(context).size.height * 0.8,
+                  child: _buildAppList(),
+                ),
               );
             },
           ),
           actions: [
             Builder(
-              builder: (context) {
-                return IconButton(
-                  icon: Icon(Icons.play_arrow_outlined, color: Colors.white),
-                  onPressed: () {
-                    // This 'context' now knows about the Scaffold
-                    Scaffold.of(context).openEndDrawer();
-                  },
-                );
-              },
+              builder: (context) => IconButton(
+                icon: const Icon(
+                  Icons.play_arrow_outlined,
+                  color: Colors.white,
+                ),
+                onPressed: () => Scaffold.of(context).openEndDrawer(),
+              ),
             ),
           ],
         ),
@@ -525,29 +610,21 @@ class _HomeState extends State<Home> {
           width: double.maxFinite,
           height: double.maxFinite,
           padding: const EdgeInsets.all(0),
-
           child: PageView(
             children: [
-              // Page 1: Your Clock and Quotes
               Padding(
                 padding: const EdgeInsets.all(10),
                 child: Stack(
                   children: [
-                    // 1. The Bottom Layer (Background)
                     Positioned.fill(
                       child: Opacity(
-                        opacity:
-                            0.5, // Logic: Makes background subtle so text is readable
+                        opacity: 0.5,
                         child: Image.asset(
                           'assets/images/cmatrix.png',
-                          fit: BoxFit
-                              .cover, // Logic: Ensures it fills the whole background
+                          fit: BoxFit.cover,
                         ),
                       ),
                     ),
-
-                    // 2. The Foreground Layer (Everything else)
-                    // Wrap your Column in a Positioned.fill to ensure it has the same boundaries
                     Positioned.fill(
                       child: Column(
                         children: [
@@ -556,13 +633,11 @@ class _HomeState extends State<Home> {
                             ((_currentTime.hour + 11) % 12 + 1)
                                 .toString()
                                 .padLeft(2, '0'),
-                            style: GoogleFonts.doto(
+                            style: GoogleFonts.firaCode(
                               fontSize: 80,
                               height: 1,
-
                               fontWeight: FontWeight.w700,
-                              color: Colors
-                                  .white, // Logic: White is better for layered UIs
+                              color: Colors.white,
                               shadows: const [
                                 Shadow(
                                   blurRadius: 15.0,
@@ -573,15 +648,13 @@ class _HomeState extends State<Home> {
                               letterSpacing: 15,
                             ),
                           ),
-
                           Text(
                             _currentTime.minute.toString().padLeft(2, '0'),
-                            style: GoogleFonts.doto(
+                            style: GoogleFonts.firaCode(
                               fontSize: 80,
                               height: 1,
                               fontWeight: FontWeight.w700,
-                              color: Colors
-                                  .white, // Logic: White is better for layered UIs
+                              color: Colors.white,
                               shadows: const [
                                 Shadow(
                                   blurRadius: 15.0,
@@ -597,8 +670,7 @@ class _HomeState extends State<Home> {
                             style: GoogleFonts.poppins(
                               fontSize: 20,
                               fontWeight: FontWeight.w400,
-                              color: Colors
-                                  .white, // Logic: White is better for layered UIs
+                              color: Colors.white,
                               shadows: const [
                                 Shadow(
                                   blurRadius: 15.0,
@@ -608,14 +680,10 @@ class _HomeState extends State<Home> {
                               ],
                             ),
                           ),
-
                           const Spacer(),
                           Padding(
-                            padding: const EdgeInsets.all(
-                              10,
-                            ), // Use EdgeInsets.all
+                            padding: const EdgeInsets.all(10),
                             child: AnimatedTextKit(
-                              // Removed 'const' here
                               key: ValueKey(_selectedQuote),
                               animatedTexts: [
                                 FadeAnimatedText(
@@ -668,36 +736,25 @@ class _HomeState extends State<Home> {
             contentPadding: const EdgeInsets.symmetric(vertical: 15),
             suffix: IconButton(
               icon: const Icon(Icons.ac_unit, color: Colors.black, size: 20),
-              onPressed: () {
-                _searchController.clear();
-              },
+              onPressed: () => _searchController.clear(),
             ),
           ),
-          onSubmitted: (value) {
-            // Logic: Trigger your search function here
-          },
+          onSubmitted: (value) {},
         ),
         const SizedBox(height: 20),
-
-        // LOGIC FIX: ValueListenableBuilder intercepts keystrokes in real-time
         Expanded(
           child: ValueListenableBuilder<TextEditingValue>(
             valueListenable: _searchController,
             builder: (context, value, child) {
-              // 1. Get the current typed text
               final query = value.text.toLowerCase().trim();
+              final currentFilteredApps = _installedApps
+                  .where((app) => app.name.toLowerCase().contains(query))
+                  .toList();
 
-              // 2. Filter the master list locally right before drawing
-              final currentFilteredApps = _installedApps.where((app) {
-                return app.name.toLowerCase().contains(query);
-              }).toList();
-
-              // 3. Handle the "Empty State" (No apps found)
               if (currentFilteredApps.isEmpty) {
                 return Center(
                   child: Text(
                     "No binary found. Search Web?",
-                    // Made it white so you can actually see it on the black bottom sheet!
                     style: GoogleFonts.inconsolata(
                       color: Colors.white,
                       fontSize: 18,
@@ -706,19 +763,12 @@ class _HomeState extends State<Home> {
                 );
               }
 
-              // 4. Draw the List using the newly filtered array
               return ListView.builder(
-                itemCount:
-                    currentFilteredApps.length, // Logic: Use real-time length
+                itemCount: currentFilteredApps.length,
                 itemBuilder: (context, index) {
-                  final app =
-                      currentFilteredApps[index]; // Logic: Use real-time item
-
-                  // YOUR EXACT LIST TILE AND DIALOG LOGIC REMAINS INTACT BELOW
+                  final app = currentFilteredApps[index];
                   return ListTile(
-                    leading: app.icon != null
-                        ? Image.memory(app.icon!, width: 40)
-                        : const Icon(Icons.android, color: Colors.green),
+                    leading: const Icon(Icons.android, color: Colors.green),
                     title: Text(
                       app.name,
                       style: GoogleFonts.firaCode(
@@ -727,7 +777,18 @@ class _HomeState extends State<Home> {
                         fontSize: 16,
                       ),
                     ),
-                    onTap: () => InstalledApps.startApp(app.packageName),
+                    onTap: () async {
+                      try {
+                        await InstalledApps.startApp(app.packageName);
+                      } catch (e, s) {
+                        developer.log(
+                          'Error starting app',
+                          name: 'InstalledApps',
+                          error: e,
+                          stackTrace: s,
+                        );
+                      }
+                    },
                     onLongPress: () => showDialog(
                       context: context,
                       builder: (context) => AlertDialog(
@@ -744,8 +805,23 @@ class _HomeState extends State<Home> {
                           Column(
                             children: [
                               TextButton(
-                                onPressed: () =>
-                                    InstalledApps.uninstallApp(app.packageName),
+                                onPressed: () async {
+                                  try {
+                                    await InstalledApps.uninstallApp(
+                                      app.packageName,
+                                    );
+                                    if (mounted) {
+                                      Navigator.pop(context);
+                                    } // Close dialog after uninstall
+                                  } catch (e, s) {
+                                    developer.log(
+                                      'Error uninstalling app',
+                                      name: 'InstalledApps',
+                                      error: e,
+                                      stackTrace: s,
+                                    );
+                                  }
+                                },
                                 style: TextButton.styleFrom(
                                   foregroundColor: Colors.white,
                                   backgroundColor: Colors.black,
@@ -761,8 +837,21 @@ class _HomeState extends State<Home> {
                               ),
                               const Divider(color: Colors.grey),
                               TextButton(
-                                onPressed: () =>
-                                    InstalledApps.openSettings(app.packageName),
+                                onPressed: () async {
+                                  try {
+                                    InstalledApps.openSettings(app.packageName);
+                                    if (mounted) {
+                                      Navigator.pop(context);
+                                    } // Close dialog after opening settings
+                                  } catch (e, s) {
+                                    developer.log(
+                                      'Error opening app settings',
+                                      name: 'InstalledApps',
+                                      error: e,
+                                      stackTrace: s,
+                                    );
+                                  }
+                                },
                                 style: TextButton.styleFrom(
                                   foregroundColor: Colors.white,
                                   backgroundColor: Colors.black,
