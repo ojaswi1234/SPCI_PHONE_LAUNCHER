@@ -1,12 +1,13 @@
 import 'dart:async';
-import 'dart:ffi';
 import 'dart:io';
 import 'dart:math';
 import 'package:animated_text_kit/animated_text_kit.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:installed_apps/app_info.dart';
 import 'package:installed_apps/installed_apps.dart';
+import 'package:marquee/marquee.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 class Home extends StatefulWidget {
@@ -29,6 +30,8 @@ class _HomeState extends State<Home> {
   final TextEditingController _musicsearchController = TextEditingController();
   String _currentSong = "System Idle";
 
+  bool _isSearching = false;
+
   List<String> quotes = [
     "भाग्य उनका साथ देता है जो कठिन परिस्थितियों में भी अपने लक्ष्य के प्रति अडिग रहते हैं।", // Luck favors the persistent.
     "आलस्य में दरिद्रता का वास होता है, और प्रयास में सफलता का।", // Poverty lives in laziness; success in effort.
@@ -43,6 +46,8 @@ class _HomeState extends State<Home> {
   int _selectedQuote = 0;
   int _quoteSecondsCounter = 0;
 
+  bool isRepeat = false;
+
   Future<void> _readPlayerStatus() async {
     try {
       final file = File('/storage/emulated/0/spci_status.txt');
@@ -52,6 +57,8 @@ class _HomeState extends State<Home> {
         if (mounted && song.trim() != _currentSong) {
           setState(() {
             _currentSong = song.trim();
+            // Add this near your other variables
+            _isSearching = false;
           });
         }
       }
@@ -236,7 +243,6 @@ class _HomeState extends State<Home> {
                     ],
                   ),
                 ),
-
                 const SizedBox(height: 30),
 
                 // 3. SONG INPUT FIELD
@@ -275,6 +281,7 @@ class _HomeState extends State<Home> {
                   onSubmitted: (value) {
                     if (value.isNotEmpty) {
                       // Logic: Sends "play [song name]" to your Python Bridge
+                      setState(() => _isSearching = true);
                       _sendMusicCommand("play $value");
                       Navigator.pop(context); // Optional: Close drawer on enter
                     }
@@ -291,13 +298,17 @@ class _HomeState extends State<Home> {
                     Column(
                       children: [
                         IconButton(
-                          icon: const Icon(
+                          icon: Icon(
                             Icons.repeat,
-                            color: Colors.greenAccent,
+                            color: isRepeat ? Colors.greenAccent : Colors.white,
                             size: 30,
                           ),
-                          onPressed: () =>
-                              _sendMusicCommand("repeat"), // Sends 'r'
+                          onPressed: () {
+                            _sendMusicCommand("repeat");
+                            setState(() {
+                              isRepeat = !isRepeat;
+                            });
+                          },
                         ),
                         Text(
                           "LOOP",
@@ -374,22 +385,103 @@ class _HomeState extends State<Home> {
         ),
         appBar: AppBar(
           backgroundColor: Colors.black,
-          title: Container(
-            alignment: Alignment.center,
-            padding: const EdgeInsets.all(10),
-            margin: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Colors.white, // The color goes INSIDE the decoration
-              borderRadius: BorderRadius.circular(36),
-            ),
-            child: Text(
-              "Hey There, Sir",
-              style: GoogleFonts.doto(
-                fontWeight: FontWeight.w700,
-                color: Colors.black,
+          title: GestureDetector(
+            onTap: () {
+              setState(() => _isSearching = true);
+              _sendMusicCommand("play");
+            },
+            child: Container(
+              // 1. Give the Master Pill a strict size so the AppBar doesn't crash
+              height: 45,
+              width:
+                  MediaQuery.of(context).size.width *
+                  0.65, // Takes up 65% of screen width safely
+              decoration: BoxDecoration(
+                color: Colors
+                    .white, // Color goes INSIDE decoration if decoration is used!
+                borderRadius: BorderRadius.circular(36),
+              ),
+              child: Row(
+                children: [
+                  // 2. THE BADGE (Nested inside the white pill with a nice margin)
+                  Container(
+                    margin: const EdgeInsets.all(
+                      4,
+                    ), // Gives it a nice gap from the edges
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: Colors.black,
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                    child: Text(
+                      "10",
+                      style: GoogleFonts.firaCode(
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+
+                  // 3. THE MAIN STATUS AREA
+                  // Because the parent Container has a strict width (65% of screen),
+                  // Expanded is now 100% safe to use here.
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: const BorderRadius.only(
+                        topRight: Radius.circular(36),
+                        bottomRight: Radius.circular(36),
+                      ),
+                      child: _isSearching
+                          ? Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const SpinKitWave(
+                                  color: Colors.black,
+                                  size: 15.0,
+                                ),
+                                const SizedBox(width: 10),
+                                Text(
+                                  "FETCHING...",
+                                  style: GoogleFonts.doto(
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.black,
+                                  ),
+                                ),
+                              ],
+                            )
+                          : ((_currentSong == "System Idle") ||
+                                (_currentSong == "Offline") ||
+                                (_currentSong == "Stopped"))
+                          ? Center(
+                              // Keeps text centered in the remaining space
+                              child: Text(
+                                "Hey There, Sir",
+                                style: GoogleFonts.doto(
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.black,
+                                ),
+                              ),
+                            )
+                          : Marquee(
+                              text: '$_currentSong ..... ',
+                              style: GoogleFonts.doto(
+                                fontWeight: FontWeight.w700,
+                                color: Colors.black,
+                              ),
+                              scrollAxis: Axis.horizontal,
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              blankSpace: 40.0,
+                              velocity: 50.0,
+                              startPadding: 10.0,
+                            ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
+
           centerTitle: true,
           leading: IconButton(
             icon: const Icon(Icons.window, size: 32, color: Colors.white),
@@ -548,7 +640,7 @@ class _HomeState extends State<Home> {
                   ],
                 ),
               ),
-              const Center(child: Text("This Launcher is still in dev")),
+              const Center(child: Text("S.I.D")),
             ],
           ),
         ),
@@ -566,14 +658,20 @@ class _HomeState extends State<Home> {
         TextField(
           controller: _searchController,
           style: GoogleFonts.firaCode(color: Colors.black, fontSize: 17),
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             filled: true,
             fillColor: Colors.white,
             hintText: "Search apps or web...",
-            hintStyle: TextStyle(color: Colors.grey),
-            prefixIcon: Icon(Icons.search, color: Colors.black, size: 20),
+            hintStyle: const TextStyle(color: Colors.grey),
+            prefixIcon: const Icon(Icons.search, color: Colors.black, size: 20),
             border: InputBorder.none,
-            contentPadding: EdgeInsets.symmetric(vertical: 15),
+            contentPadding: const EdgeInsets.symmetric(vertical: 15),
+            suffix: IconButton(
+              icon: const Icon(Icons.ac_unit, color: Colors.black, size: 20),
+              onPressed: () {
+                _searchController.clear();
+              },
+            ),
           ),
           onSubmitted: (value) {
             // Logic: Trigger your search function here
