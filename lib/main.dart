@@ -3,6 +3,7 @@ import 'dart:developer' as developer;
 import 'dart:io';
 import 'dart:math';
 import 'package:animated_text_kit/animated_text_kit.dart';
+import 'package:battery_plus/battery_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -34,9 +35,15 @@ class _HomeState extends State<Home> {
   bool _isSearching = false;
   final List<ServiceNotificationEvent> _liveNotifications = [];
   int _notificationCount = 0;
+  StreamSubscription? _notificationSub;
+  final Battery _battery = Battery();
+  int _batteryLevel = 100;
+  BatteryState _batteryState = BatteryState.full;
+  StreamSubscription<BatteryState>? _batteryStateSubscription;
 
   bool _isLoading = false;
   String _theme = "black_and_white";
+  final bool _isCharging = false;
 
   List<String> quotes = [
     "भाग्य उनका साथ देता है जो कठिन परिस्थितियों में भी अपने लक्ष्य के प्रति अडिग रहते हैं।",
@@ -97,6 +104,27 @@ class _HomeState extends State<Home> {
         stackTrace: s,
       );
     }
+  }
+
+  Future<void> _initBatterySystem() async {
+    // 1. Get the initial percentage on boot
+    final level = await _battery.batteryLevel;
+    if (mounted) {
+      setState(() => _batteryLevel = level);
+    }
+
+    // 2. Listen for the charger being plugged/unplugged
+    _batteryStateSubscription = _battery.onBatteryStateChanged.listen((
+      BatteryState state,
+    ) {
+      if (mounted) {
+        setState(() {
+          _batteryState = state;
+          // Optional: Re-fetch the battery level here just to keep it perfectly synced
+          // when the state changes.
+        });
+      }
+    });
   }
 
   Future<void> _readPlayerStatus() async {
@@ -179,6 +207,16 @@ class _HomeState extends State<Home> {
     _fetchInstalledApps();
     _clearStaleCommands();
     _initNotificationListener();
+    _notificationSub = NotificationListenerService.notificationsStream.listen((
+      event,
+    ) {
+      if (mounted) {
+        setState(() {
+          _liveNotifications.insert(0, event);
+          _notificationCount = _liveNotifications.length;
+        });
+      }
+    });
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (mounted) {
         setState(() {
@@ -395,10 +433,14 @@ class _HomeState extends State<Home> {
                       height: 10,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: Colors.greenAccent,
+                        color: (_batteryState != BatteryState.charging)
+                            ? Colors.greenAccent
+                            : Colors.cyanAccent,
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.greenAccent.withOpacity(0.8),
+                            color: (_batteryState != BatteryState.charging)
+                                ? Colors.greenAccent
+                                : Colors.cyanAccent,
                             blurRadius: 6.0,
                             spreadRadius: 1.0,
                           ),
@@ -407,9 +449,13 @@ class _HomeState extends State<Home> {
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      "[OPERATIONAL]",
+                      (_batteryState != BatteryState.charging)
+                          ? "[OPERATIONAL]"
+                          : "[Charging]",
                       style: GoogleFonts.firaCode(
-                        color: Colors.greenAccent,
+                        color: (_batteryState != BatteryState.charging)
+                            ? Colors.greenAccent
+                            : Colors.cyanAccent,
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
                         letterSpacing: 0.5,
@@ -450,7 +496,23 @@ class _HomeState extends State<Home> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  const Icon(Icons.battery_5_bar, color: Colors.grey, size: 14),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.battery_5_bar,
+                        color: Colors.grey,
+                        size: 14,
+                      ),
+                      Text(
+                        "$_batteryLevel%",
+                        style: TextStyle(
+                          color: (_batteryLevel > 45)
+                              ? Colors.greenAccent
+                              : Color(0xFFFFB000),
+                        ),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 4),
                   GestureDetector(
                     onTap: () {
@@ -540,6 +602,8 @@ class _HomeState extends State<Home> {
   @override
   void dispose() {
     _timer.cancel();
+    _notificationSub?.cancel();
+    _batteryStateSubscription?.cancel();
     super.dispose();
   }
 
@@ -1175,7 +1239,13 @@ class _HomeState extends State<Home> {
                   return ListTile(
                     leading: _theme == "black_and_white"
                         ? null
-                        : Image.memory(app.icon!, width: 50, height: 50),
+                        : (app.icon != null
+                              ? Image.memory(app.icon!, width: 50, height: 50)
+                              : const Icon(
+                                  Icons.android,
+                                  size: 50,
+                                  color: Colors.greenAccent,
+                                )),
                     title: Text(
                       app.name,
                       style: GoogleFonts.firaCode(
