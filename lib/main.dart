@@ -35,6 +35,9 @@ class _HomeState extends State<Home> {
   final List<ServiceNotificationEvent> _liveNotifications = [];
   int _notificationCount = 0;
 
+  bool _isLoading = false;
+  String _theme = "black_and_white";
+
   List<String> quotes = [
     "भाग्य उनका साथ देता है जो कठिन परिस्थितियों में भी अपने लक्ष्य के प्रति अडिग रहते हैं।",
     "आलस्य में दरिद्रता का वास होता है, और प्रयास में सफलता का।",
@@ -245,6 +248,233 @@ class _HomeState extends State<Home> {
     );
   }
 
+  void _changeTheme(String buttonValue) async {
+    try {
+      // 1. Close the theme selection dialog first
+      Navigator.pop(context);
+
+      setState(() {
+        _isLoading = true;
+      });
+
+      // 3. Add a brief delay to allow the loading screen to render
+      // and assets to prepare in memory (adjust milliseconds as needed)
+      await Future.delayed(const Duration(milliseconds: 400));
+
+      // 4. Check if widget is still in the tree, then apply theme and turn OFF loading
+      if (mounted) {
+        setState(() {
+          if (buttonValue == "minimalist") {
+            _theme = "black_and_white";
+          } else {
+            _theme = "vibrant";
+          }
+          _isLoading = false;
+        });
+      }
+    } catch (err) {
+      developer.log(err.toString(), name: "Error");
+      // Make sure to turn off loading if something crashes
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Widget _buildSciFiStatusBar() {
+    return Container(
+      height: 60,
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.blueGrey.withOpacity(0.3), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.6),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
+          ),
+        ],
+        gradient: const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFF2A313C), Color(0xFF15181E)],
+        ),
+      ),
+      child: Row(
+        children: [
+          // Left Side - Menu & Signal
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                IconButton(
+                  icon: Icon(Icons.menu, color: Colors.grey, size: 20),
+                  onPressed: () {
+                    showModalBottomSheet(
+                      context: context,
+                      isScrollControlled: true,
+                      backgroundColor: Colors.black,
+                      shape: const RoundedRectangleBorder(
+                        borderRadius: BorderRadius.vertical(
+                          top: Radius.circular(20),
+                        ),
+                      ),
+                      builder: (BuildContext context) => SizedBox(
+                        height: MediaQuery.of(context).size.height * 0.8,
+                        child: _buildAppList(),
+                      ),
+                    );
+                  },
+                ),
+                SizedBox(height: 2),
+              ],
+            ),
+          ),
+
+          // Avatar (You can swap Icons.terminal with an Image asset later)
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: Colors.grey.withOpacity(0.5),
+                width: 1.5,
+              ),
+            ),
+            child: Center(
+              child: IconButton(
+                onPressed: () async {
+                  await InstalledApps.startApp('com.google.android.youtube');
+                },
+                icon: Icon(
+                  Icons.terminal,
+                  color: Colors.lightGreenAccent,
+                  size: 20,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+
+          // Center - Identity & Status
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "Ojaswi@CONSOLE", // Change to whatever you want
+                  style: GoogleFonts.orbitron(
+                    color: Colors.white.withOpacity(0.9),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    // Glowing Green Dot
+                    Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.greenAccent,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.greenAccent.withOpacity(0.8),
+                            blurRadius: 6.0,
+                            spreadRadius: 1.0,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      "[OPERATIONAL]",
+                      style: GoogleFonts.firaCode(
+                        color: Colors.greenAccent,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      "///",
+                      style: GoogleFonts.firaCode(
+                        color: Colors.grey.withOpacity(0.6),
+                        fontSize: 12,
+                        fontStyle: FontStyle.italic,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          // Right Side - Angled Panel & Notifications
+          ClipPath(
+            clipper: AngledPanelClipper(),
+            child: Container(
+              width: 90,
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A1D24),
+                border: Border(
+                  left: BorderSide(
+                    color: Colors.black.withOpacity(0.5),
+                    width: 2,
+                  ),
+                ),
+              ),
+              padding: const EdgeInsets.only(left: 16, right: 12),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  const Icon(Icons.battery_5_bar, color: Colors.grey, size: 14),
+                  const SizedBox(height: 4),
+                  GestureDetector(
+                    onTap: () {
+                      _showNotificationsPopup();
+                    },
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Text(
+                          _notificationCount.toString(),
+                          style: GoogleFonts.orbitron(
+                            color: const Color(0xFFFFB000), // Amber
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        const Icon(
+                          Icons.notifications,
+                          color: Color(0xFFFFB000),
+                          size: 14,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _fetchInstalledApps() async {
     try {
       final apps = await InstalledApps.getInstalledApps(
@@ -304,416 +534,535 @@ class _HomeState extends State<Home> {
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, _) {
-        if (didPop) return;
-      },
-      child: Scaffold(
-        backgroundColor: Colors.black,
-        endDrawer: Drawer(
-          backgroundColor: Colors.black,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 50),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Text(
-                    "TERMINAL AUDIO",
-                    style: GoogleFonts.orbitron(
-                      color: Colors.lightGreen,
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 2,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 30),
-                Container(
+    return _isLoading
+        ? const Scaffold(
+            backgroundColor: Colors.black,
+            body: Center(
+              child: SpinKitSpinningLines(
+                color: Colors.lightGreenAccent,
+                size: 50.0,
+              ),
+            ),
+          )
+        : (_theme == "black_and_white")
+        ? PopScope(
+            canPop: false,
+            onPopInvokedWithResult: (didPop, _) {
+              if (didPop) return;
+            },
+            child: Scaffold(
+              backgroundColor: Colors.black,
+              endDrawer: Drawer(
+                backgroundColor: Colors.black,
+                child: Padding(
                   padding: const EdgeInsets.symmetric(
-                    vertical: 15,
                     horizontal: 20,
+                    vertical: 50,
                   ),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withAlpha(13),
-                    borderRadius: BorderRadius.circular(15),
-                    border: Border.all(color: Colors.green.withAlpha(77)),
-                  ),
-                  child: Row(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(
-                        Icons.graphic_eq,
-                        color: Colors.greenAccent,
-                        size: 28,
+                      Center(
+                        child: Text(
+                          "TERMINAL AUDIO",
+                          style: GoogleFonts.orbitron(
+                            color: Colors.lightGreen,
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 2,
+                          ),
+                        ),
                       ),
-                      const SizedBox(width: 15),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                      const SizedBox(height: 30),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 15,
+                          horizontal: 20,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withAlpha(13),
+                          borderRadius: BorderRadius.circular(15),
+                          border: Border.all(color: Colors.green.withAlpha(77)),
+                        ),
+                        child: Row(
                           children: [
-                            Text(
-                              "NOW PLAYING",
-                              style: GoogleFonts.firaCode(
-                                color: Colors.grey,
-                                fontSize: 10,
-                                letterSpacing: 1.5,
-                              ),
+                            const Icon(
+                              Icons.graphic_eq,
+                              color: Colors.greenAccent,
+                              size: 28,
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                              _currentSong,
-                              style: GoogleFonts.firaCode(
-                                color: Colors.white,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
+                            const SizedBox(width: 15),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    "NOW PLAYING",
+                                    style: GoogleFonts.firaCode(
+                                      color: Colors.grey,
+                                      fontSize: 10,
+                                      letterSpacing: 1.5,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    _currentSong,
+                                    style: GoogleFonts.firaCode(
+                                      color: Colors.white,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
                             ),
                           ],
+                        ),
+                      ),
+                      const SizedBox(height: 30),
+                      Text(
+                        " // COMMAND INPUT",
+                        style: GoogleFonts.firaCode(
+                          color: Colors.grey,
+                          fontSize: 12,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        style: GoogleFonts.firaCode(color: Colors.white),
+                        cursorColor: Colors.lightGreenAccent,
+                        decoration: InputDecoration(
+                          filled: true,
+                          fillColor: Colors.white.withAlpha(20),
+                          hintText: "Type song name...",
+                          hintStyle: TextStyle(
+                            color: Colors.grey.withAlpha(128),
+                          ),
+                          prefixIcon: const Icon(
+                            Icons.terminal,
+                            color: Colors.lightGreenAccent,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide.none,
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide(
+                              color: Colors.white.withAlpha(26),
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(color: Colors.green),
+                          ),
+                        ),
+                        onSubmitted: (value) {
+                          if (value.isNotEmpty) {
+                            if (mounted) setState(() => _isSearching = true);
+                            _sendMusicCommand("play $value");
+                            Navigator.pop(context);
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 30),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          Column(
+                            children: [
+                              IconButton(
+                                icon: Icon(
+                                  Icons.repeat,
+                                  color: isRepeat
+                                      ? Colors.greenAccent
+                                      : Colors.white,
+                                  size: 30,
+                                ),
+                                onPressed: () {
+                                  _sendMusicCommand("repeat");
+                                  if (mounted) {
+                                    setState(() => isRepeat = !isRepeat);
+                                  }
+                                },
+                              ),
+                              Text(
+                                "LOOP",
+                                style: GoogleFonts.firaCode(
+                                  color: Colors.grey,
+                                  fontSize: 10,
+                                ),
+                              ),
+                            ],
+                          ),
+                          Column(
+                            children: [
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.stop_circle,
+                                  color: Colors.redAccent,
+                                  size: 50,
+                                ),
+                                onPressed: () => _sendMusicCommand("stop"),
+                              ),
+                              Text(
+                                "STOP",
+                                style: GoogleFonts.firaCode(
+                                  color: Colors.redAccent,
+                                  fontSize: 10,
+                                ),
+                              ),
+                            ],
+                          ),
+                          Column(
+                            children: [
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.power_settings_new,
+                                  color: Colors.grey,
+                                  size: 30,
+                                ),
+                                onPressed: () => _sendMusicCommand("kill"),
+                              ),
+                              Text(
+                                "KILL",
+                                style: GoogleFonts.firaCode(
+                                  color: Colors.grey,
+                                  fontSize: 10,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      const Spacer(),
+                      Center(
+                        child: Text(
+                          "BRIDGE STATUS: ACTIVE [TMUX]",
+                          style: GoogleFonts.firaCode(
+                            color: Colors.greenAccent.withAlpha(128),
+                            fontSize: 10,
+                            letterSpacing: 1,
+                          ),
                         ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 30),
-                Text(
-                  " // COMMAND INPUT",
-                  style: GoogleFonts.firaCode(color: Colors.grey, fontSize: 12),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  style: GoogleFonts.firaCode(color: Colors.white),
-                  cursorColor: Colors.lightGreenAccent,
-                  decoration: InputDecoration(
-                    filled: true,
-                    fillColor: Colors.white.withAlpha(20),
-                    hintText: "Type song name...",
-                    hintStyle: TextStyle(color: Colors.grey.withAlpha(128)),
-                    prefixIcon: const Icon(
-                      Icons.terminal,
-                      color: Colors.lightGreenAccent,
+              ),
+              appBar: AppBar(
+                backgroundColor: Colors.black,
+                title: GestureDetector(
+                  child: Container(
+                    height: 45,
+                    width: MediaQuery.of(context).size.width * 0.65,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(36),
                     ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide.none,
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide(color: Colors.white.withAlpha(26)),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: const BorderSide(color: Colors.green),
+                    child: Row(
+                      children: [
+                        AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 500),
+                          transitionBuilder:
+                              (Widget child, Animation<double> animation) =>
+                                  ScaleTransition(
+                                    scale: animation,
+                                    child: child,
+                                  ),
+                          child: _notificationCount <= 1
+                              ? const SizedBox.shrink()
+                              : _buildAnimatedBadge(),
+                        ),
+                        Expanded(
+                          child: ClipRRect(
+                            borderRadius: const BorderRadius.only(
+                              topRight: Radius.circular(36),
+                              bottomRight: Radius.circular(36),
+                            ),
+                            child: _isSearching
+                                ? Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      const SpinKitWave(
+                                        color: Colors.black,
+                                        size: 15.0,
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Text(
+                                        "FETCHING...",
+                                        style: GoogleFonts.doto(
+                                          fontWeight: FontWeight.w700,
+                                          color: Colors.black,
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                : ((_currentSong == "System Idle") ||
+                                      (_currentSong == "Offline") ||
+                                      (_currentSong == "Stopped"))
+                                ? Center(
+                                    child: Text(
+                                      "Hey There, Sir",
+                                      style: GoogleFonts.doto(
+                                        fontWeight: FontWeight.w700,
+                                        color: Colors.black,
+                                      ),
+                                    ),
+                                  )
+                                : Marquee(
+                                    text: '$_currentSong ..... ',
+                                    style: GoogleFonts.doto(
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.black,
+                                    ),
+                                    scrollAxis: Axis.horizontal,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.center,
+                                    blankSpace: 40.0,
+                                    velocity: 50.0,
+                                    startPadding: 10.0,
+                                  ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  onSubmitted: (value) {
-                    if (value.isNotEmpty) {
-                      if (mounted) setState(() => _isSearching = true);
-                      _sendMusicCommand("play $value");
-                      Navigator.pop(context);
-                    }
+                ),
+                centerTitle: true,
+                leading: IconButton(
+                  icon: const Icon(Icons.window, size: 32, color: Colors.white),
+                  onPressed: () {
+                    showModalBottomSheet(
+                      context: context,
+                      isScrollControlled: true,
+                      backgroundColor: Colors.black,
+                      shape: const RoundedRectangleBorder(
+                        borderRadius: BorderRadius.vertical(
+                          top: Radius.circular(20),
+                        ),
+                      ),
+                      builder: (BuildContext context) => SizedBox(
+                        height: MediaQuery.of(context).size.height * 0.8,
+                        child: _buildAppList(),
+                      ),
+                    );
                   },
                 ),
-                const SizedBox(height: 30),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    Column(
-                      children: [
-                        IconButton(
-                          icon: Icon(
-                            Icons.repeat,
-                            color: isRepeat ? Colors.greenAccent : Colors.white,
-                            size: 30,
-                          ),
-                          onPressed: () {
-                            _sendMusicCommand("repeat");
-                            if (mounted) setState(() => isRepeat = !isRepeat);
-                          },
-                        ),
-                        Text(
-                          "LOOP",
-                          style: GoogleFonts.firaCode(
-                            color: Colors.grey,
-                            fontSize: 10,
-                          ),
-                        ),
-                      ],
-                    ),
-                    Column(
-                      children: [
-                        IconButton(
-                          icon: const Icon(
-                            Icons.stop_circle,
-                            color: Colors.redAccent,
-                            size: 50,
-                          ),
-                          onPressed: () => _sendMusicCommand("stop"),
-                        ),
-                        Text(
-                          "STOP",
-                          style: GoogleFonts.firaCode(
-                            color: Colors.redAccent,
-                            fontSize: 10,
-                          ),
-                        ),
-                      ],
-                    ),
-                    Column(
-                      children: [
-                        IconButton(
-                          icon: const Icon(
-                            Icons.power_settings_new,
-                            color: Colors.grey,
-                            size: 30,
-                          ),
-                          onPressed: () => _sendMusicCommand("kill"),
-                        ),
-                        Text(
-                          "KILL",
-                          style: GoogleFonts.firaCode(
-                            color: Colors.grey,
-                            fontSize: 10,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                const Spacer(),
-                Center(
-                  child: Text(
-                    "BRIDGE STATUS: ACTIVE [TMUX]",
-                    style: GoogleFonts.firaCode(
-                      color: Colors.greenAccent.withAlpha(128),
-                      fontSize: 10,
-                      letterSpacing: 1,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        appBar: AppBar(
-          backgroundColor: Colors.black,
-          title: GestureDetector(
-            onTap: () {
-              if (mounted) setState(() => _isSearching = true);
-              _sendMusicCommand("play");
-            },
-            child: Container(
-              height: 45,
-              width: MediaQuery.of(context).size.width * 0.65,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(36),
-              ),
-              child: Row(
-                children: [
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 500),
-                    transitionBuilder:
-                        (Widget child, Animation<double> animation) =>
-                            ScaleTransition(scale: animation, child: child),
-                    child: _notificationCount <= 1
-                        ? const SizedBox.shrink()
-                        : _buildAnimatedBadge(),
-                  ),
-                  Expanded(
-                    child: ClipRRect(
-                      borderRadius: const BorderRadius.only(
-                        topRight: Radius.circular(36),
-                        bottomRight: Radius.circular(36),
+                actions: [
+                  Builder(
+                    builder: (context) => IconButton(
+                      icon: const Icon(
+                        Icons.play_arrow_outlined,
+                        color: Colors.white,
                       ),
-                      child: _isSearching
-                          ? Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const SpinKitWave(
-                                  color: Colors.black,
-                                  size: 15.0,
-                                ),
-                                const SizedBox(width: 10),
-                                Text(
-                                  "FETCHING...",
-                                  style: GoogleFonts.firaCode(
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.black,
-                                  ),
-                                ),
-                              ],
-                            )
-                          : ((_currentSong == "System Idle") ||
-                                (_currentSong == "Offline") ||
-                                (_currentSong == "Stopped"))
-                          ? Center(
-                              child: Text(
-                                "Hey There, Sir",
-                                style: GoogleFonts.firaCode(
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.black,
-                                ),
-                              ),
-                            )
-                          : Marquee(
-                              text: '$_currentSong ..... ',
-                              style: GoogleFonts.firaCode(
-                                fontWeight: FontWeight.w700,
-                                color: Colors.black,
-                              ),
-                              scrollAxis: Axis.horizontal,
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              blankSpace: 40.0,
-                              velocity: 50.0,
-                              startPadding: 10.0,
-                            ),
+                      onPressed: () => Scaffold.of(context).openEndDrawer(),
                     ),
                   ),
                 ],
               ),
-            ),
-          ),
-          centerTitle: true,
-          leading: IconButton(
-            icon: const Icon(Icons.window, size: 32, color: Colors.white),
-            onPressed: () {
-              showModalBottomSheet(
-                context: context,
-                isScrollControlled: true,
-                backgroundColor: Colors.black,
-                shape: const RoundedRectangleBorder(
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-                ),
-                builder: (BuildContext context) => SizedBox(
-                  height: MediaQuery.of(context).size.height * 0.8,
-                  child: _buildAppList(),
-                ),
-              );
-            },
-          ),
-          actions: [
-            Builder(
-              builder: (context) => IconButton(
-                icon: const Icon(
-                  Icons.play_arrow_outlined,
-                  color: Colors.white,
-                ),
-                onPressed: () => Scaffold.of(context).openEndDrawer(),
-              ),
-            ),
-          ],
-        ),
-        body: Container(
-          width: double.maxFinite,
-          height: double.maxFinite,
-          padding: const EdgeInsets.all(0),
-          child: PageView(
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(10),
-                child: Stack(
+              body: Container(
+                width: double.maxFinite,
+                height: double.maxFinite,
+                padding: const EdgeInsets.all(0),
+                child: PageView(
                   children: [
-                    Positioned.fill(
-                      child: Opacity(
-                        opacity: 0.5,
-                        child: Image.asset(
-                          'assets/images/cmatrix.png',
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                    ),
-                    Positioned.fill(
-                      child: Column(
+                    Padding(
+                      padding: const EdgeInsets.all(10),
+                      child: Stack(
                         children: [
-                          const SizedBox(height: 16),
-                          Text(
-                            ((_currentTime.hour + 11) % 12 + 1)
-                                .toString()
-                                .padLeft(2, '0'),
-                            style: GoogleFonts.firaCode(
-                              fontSize: 80,
-                              height: 1,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                              shadows: const [
-                                Shadow(
-                                  blurRadius: 15.0,
-                                  color: Colors.white,
-                                  offset: Offset(2, 2),
-                                ),
-                              ],
-                              letterSpacing: 15,
+                          Positioned.fill(
+                            child: Opacity(
+                              opacity: 0.5,
+                              child: Image.asset(
+                                'assets/images/cmatrix.png',
+                                fit: BoxFit.cover,
+                              ),
                             ),
                           ),
-                          Text(
-                            _currentTime.minute.toString().padLeft(2, '0'),
-                            style: GoogleFonts.firaCode(
-                              fontSize: 80,
-                              height: 1,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                              shadows: const [
-                                Shadow(
-                                  blurRadius: 15.0,
-                                  color: Colors.white,
-                                  offset: Offset(2, 2),
-                                ),
-                              ],
-                              letterSpacing: 15,
-                            ),
-                          ),
-                          Text(
-                            _currentTime.hour >= 12 ? 'pm' : 'am',
-                            style: GoogleFonts.poppins(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w400,
-                              color: Colors.white,
-                              shadows: const [
-                                Shadow(
-                                  blurRadius: 15.0,
-                                  color: Colors.white,
-                                  offset: Offset(2, 2),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const Spacer(),
-                          Padding(
-                            padding: const EdgeInsets.all(10),
-                            child: AnimatedTextKit(
-                              key: ValueKey(_selectedQuote),
-                              animatedTexts: [
-                                FadeAnimatedText(
-                                  quotes[_selectedQuote],
-                                  textStyle: GoogleFonts.tiroDevanagariHindi(
-                                    fontSize: 20,
+                          Positioned.fill(
+                            child: Column(
+                              children: [
+                                const SizedBox(height: 32),
+                                Text(
+                                  ((_currentTime.hour + 11) % 12 + 1)
+                                      .toString()
+                                      .padLeft(2, '0'),
+                                  style: GoogleFonts.doto(
+                                    fontSize: 80,
+                                    height: 1,
+
                                     color: Colors.white,
+                                    shadows: const [
+                                      Shadow(
+                                        blurRadius: 15.0,
+                                        color: Colors.white,
+                                        offset: Offset(2, 2),
+                                      ),
+                                    ],
+                                    letterSpacing: 15,
                                   ),
-                                  textAlign: TextAlign.end,
-                                  duration: const Duration(seconds: 5),
-                                  fadeOutBegin: 0.9,
-                                  fadeInEnd: 0.1,
                                 ),
+                                Text(
+                                  _currentTime.minute.toString().padLeft(
+                                    2,
+                                    '0',
+                                  ),
+                                  style: GoogleFonts.doto(
+                                    fontSize: 80,
+                                    height: 1,
+
+                                    color: Colors.white,
+                                    shadows: const [
+                                      Shadow(
+                                        blurRadius: 15.0,
+                                        color: Colors.white,
+                                        offset: Offset(2, 2),
+                                      ),
+                                    ],
+                                    letterSpacing: 15,
+                                  ),
+                                ),
+                                Text(
+                                  _currentTime.hour >= 12 ? 'pm' : 'am',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w400,
+                                    color: Colors.white,
+                                    shadows: const [
+                                      Shadow(
+                                        blurRadius: 15.0,
+                                        color: Colors.white,
+                                        offset: Offset(2, 2),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const Spacer(),
+                                Padding(
+                                  padding: const EdgeInsets.all(10),
+                                  child: AnimatedTextKit(
+                                    key: ValueKey(_selectedQuote),
+                                    animatedTexts: [
+                                      FadeAnimatedText(
+                                        quotes[_selectedQuote],
+                                        textStyle:
+                                            GoogleFonts.tiroDevanagariHindi(
+                                              fontSize: 20,
+                                              color: Colors.white,
+                                            ),
+                                        textAlign: TextAlign.end,
+                                        duration: const Duration(seconds: 5),
+                                        fadeOutBegin: 0.9,
+                                        fadeInEnd: 0.1,
+                                      ),
+                                    ],
+                                    totalRepeatCount: 1,
+                                  ),
+                                ),
+                                const SizedBox(height: 40),
                               ],
-                              totalRepeatCount: 1,
                             ),
                           ),
-                          const SizedBox(height: 40),
                         ],
                       ),
                     ),
+                    const Center(child: Text("S.I.D")),
                   ],
                 ),
               ),
-              const Center(child: Text("S.I.D")),
-            ],
-          ),
-        ),
-      ),
-    );
+            ),
+          )
+        : PopScope(
+            canPop: false,
+            onPopInvokedWithResult: (didPop, _) {
+              if (didPop) return;
+            },
+
+            child: Scaffold(
+              backgroundColor: Colors.black,
+
+              body: Container(
+                width: double.maxFinite,
+                height: double.maxFinite,
+                decoration: BoxDecoration(
+                  image: DecorationImage(
+                    image: AssetImage("assets/images/vibrant_color_bg.png"),
+                    fit: BoxFit.cover,
+                  ),
+                ),
+                child: Positioned.fill(
+                  child: Column(
+                    children: [
+                      const SizedBox(
+                        height: 40,
+                      ), // Space from the top of the screen
+                      _buildSciFiStatusBar(), // <--- Your new UI element!
+                      const SizedBox(height: 40),
+                      Text(
+                        ((_currentTime.hour + 11) % 12 + 1).toString().padLeft(
+                          2,
+                          '0',
+                        ),
+                        style: GoogleFonts.sixtyfour(
+                          fontSize: 80,
+                          height: 1,
+                          fontWeight: FontWeight.w400,
+                          color: Colors.greenAccent,
+
+                          letterSpacing: 15,
+                        ),
+                      ),
+                      Text(
+                        _currentTime.minute.toString().padLeft(2, '0'),
+                        style: GoogleFonts.sixtyfour(
+                          fontSize: 80,
+                          height: 1,
+
+                          color: Colors.greenAccent,
+
+                          letterSpacing: 15,
+                        ),
+                      ),
+                      Text(
+                        _currentTime.hour >= 12 ? 'pm' : 'am',
+                        style: GoogleFonts.poppins(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w400,
+                          color: Colors.greenAccent,
+                        ),
+                      ),
+                      SpinKitWave(color: Colors.white, size: 20.0),
+
+                      const Spacer(),
+                      Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: AnimatedTextKit(
+                          key: ValueKey(_selectedQuote),
+                          animatedTexts: [
+                            FadeAnimatedText(
+                              quotes[_selectedQuote],
+                              textStyle: GoogleFonts.tiroDevanagariHindi(
+                                fontSize: 20,
+                                color: Colors.yellowAccent,
+                              ),
+                              textAlign: TextAlign.end,
+                              duration: const Duration(seconds: 5),
+                              fadeOutBegin: 0.9,
+                              fadeInEnd: 0.1,
+                            ),
+                          ],
+                          totalRepeatCount: 1,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
   }
 
   Widget _buildAppList() {
@@ -737,6 +1086,46 @@ class _HomeState extends State<Home> {
             suffix: IconButton(
               icon: const Icon(Icons.ac_unit, color: Colors.black, size: 20),
               onPressed: () => _searchController.clear(),
+              onLongPress: () {
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text("Change Theme"),
+                    content: Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          ElevatedButton(
+                            onPressed: () {
+                              _changeTheme("minimalist");
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.black,
+                              foregroundColor: Colors.white,
+                              elevation: 16,
+                            ),
+                            child: Text("Minimalistic Theme"),
+                          ),
+                          Divider(color: Colors.black),
+                          ElevatedButton(
+                            onPressed: () {
+                              _changeTheme("vibrant");
+                            },
+                            style: ElevatedButton.styleFrom(elevation: 16),
+                            child: Text("Vibrant Theme"),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    constraints: BoxConstraints(
+                      maxWidth: MediaQuery.of(context).size.width * 0.9,
+                      maxHeight: MediaQuery.of(context).size.height * 0.4,
+                    ),
+                  ),
+                );
+              },
             ),
           ),
           onSubmitted: (value) {},
@@ -754,7 +1143,7 @@ class _HomeState extends State<Home> {
               if (currentFilteredApps.isEmpty) {
                 return Center(
                   child: Text(
-                    "No binary found. Search Web?",
+                    "No binary found. Search Web/Playstore",
                     style: GoogleFonts.inconsolata(
                       color: Colors.white,
                       fontSize: 18,
@@ -768,7 +1157,6 @@ class _HomeState extends State<Home> {
                 itemBuilder: (context, index) {
                   final app = currentFilteredApps[index];
                   return ListTile(
-                    leading: const Icon(Icons.android, color: Colors.green),
                     title: Text(
                       app.name,
                       style: GoogleFonts.firaCode(
@@ -811,6 +1199,7 @@ class _HomeState extends State<Home> {
                                       app.packageName,
                                     );
                                     if (mounted) {
+                                      // ignore: use_build_context_synchronously
                                       Navigator.pop(context);
                                     } // Close dialog after uninstall
                                   } catch (e, s) {
@@ -879,4 +1268,20 @@ class _HomeState extends State<Home> {
       ],
     );
   }
+}
+
+class AngledPanelClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) {
+    Path path = Path();
+    path.moveTo(25.0, 0.0);
+    path.lineTo(size.width, 0.0);
+    path.lineTo(size.width, size.height);
+    path.lineTo(0.0, size.height);
+    path.close();
+    return path;
+  }
+
+  @override
+  bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }
