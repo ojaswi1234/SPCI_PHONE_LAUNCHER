@@ -88,14 +88,16 @@ class _HomeState extends State<Home> {
         }
       }
 
-      NotificationListenerService.notificationsStream.listen((event) {
-        if (mounted) {
-          setState(() {
-            _liveNotifications.insert(0, event);
-            _notificationCount = _liveNotifications.length;
-          });
-        }
-      });
+      _notificationSub = NotificationListenerService.notificationsStream.listen(
+        (event) {
+          if (mounted) {
+            setState(() {
+              _liveNotifications.insert(0, event);
+              _notificationCount = _liveNotifications.length;
+            });
+          }
+        },
+      );
     } catch (e, s) {
       developer.log(
         'Error initializing notification listener',
@@ -207,16 +209,8 @@ class _HomeState extends State<Home> {
     _fetchInstalledApps();
     _clearStaleCommands();
     _initNotificationListener();
-    _notificationSub = NotificationListenerService.notificationsStream.listen((
-      event,
-    ) {
-      if (mounted) {
-        setState(() {
-          _liveNotifications.insert(0, event);
-          _notificationCount = _liveNotifications.length;
-        });
-      }
-    });
+    _initBatterySystem();
+
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (mounted) {
         setState(() {
@@ -323,7 +317,7 @@ class _HomeState extends State<Home> {
 
   Widget _buildSciFiStatusBar() {
     return Container(
-      height: 60,
+      height: 70, // Increased from 60 to give elements breathing room
       margin: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
@@ -343,37 +337,32 @@ class _HomeState extends State<Home> {
       ),
       child: Row(
         children: [
-          // Left Side - Menu & Signal
+          // Left Side - Menu
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                IconButton(
-                  icon: Icon(Icons.menu, color: Colors.grey, size: 20),
-                  onPressed: () {
-                    showModalBottomSheet(
-                      context: context,
-                      isScrollControlled: true,
-                      backgroundColor: Colors.black,
-                      shape: const RoundedRectangleBorder(
-                        borderRadius: BorderRadius.vertical(
-                          top: Radius.circular(20),
-                        ),
-                      ),
-                      builder: (BuildContext context) => SizedBox(
-                        height: MediaQuery.of(context).size.height * 0.8,
-                        child: _buildAppList(),
-                      ),
-                    );
-                  },
-                ),
-                SizedBox(height: 2),
-              ],
+            padding: const EdgeInsets.only(left: 12.0, right: 8.0),
+            child: IconButton(
+              // Removed the unnecessary column, centering it naturally
+              icon: const Icon(Icons.menu, color: Colors.grey, size: 24),
+              onPressed: () {
+                showModalBottomSheet(
+                  context: context,
+                  isScrollControlled: true,
+                  backgroundColor: Colors.black,
+                  shape: const RoundedRectangleBorder(
+                    borderRadius: BorderRadius.vertical(
+                      top: Radius.circular(20),
+                    ),
+                  ),
+                  builder: (BuildContext context) => SizedBox(
+                    height: MediaQuery.of(context).size.height * 0.8,
+                    child: _buildAppList(),
+                  ),
+                );
+              },
             ),
           ),
 
-          // Avatar (You can swap Icons.terminal with an Image asset later)
+          // Avatar (Replaced IconButton with InkWell for perfect centering)
           Container(
             width: 40,
             height: 40,
@@ -384,23 +373,24 @@ class _HomeState extends State<Home> {
                 width: 1.5,
               ),
             ),
-            child: Center(
+            child: Material(
+              color: Colors.transparent, // Keeps the ripple effect visible
               child: Builder(
-                // Added Builder to get the correct context for the Scaffold
                 builder: (context) {
-                  return IconButton(
-                    onPressed: () async {
-                      // Normal Tap -> Opens Termux
+                  return InkWell(
+                    borderRadius: BorderRadius.circular(20), // Matches circle
+                    onTap: () async {
                       await InstalledApps.startApp('com.termux');
                     },
                     onLongPress: () {
-                      // Long Press -> Opens the End Drawer (for your music player)
                       Scaffold.of(context).openEndDrawer();
                     },
-                    icon: const Icon(
-                      Icons.terminal,
-                      color: Colors.lightGreenAccent,
-                      size: 20,
+                    child: const Center(
+                      child: Icon(
+                        Icons.terminal,
+                        color: Colors.lightGreenAccent,
+                        size: 20,
+                      ),
                     ),
                   );
                 },
@@ -416,21 +406,21 @@ class _HomeState extends State<Home> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  "Ojaswi@CONSOLE", // Change to whatever you want
+                  "OJASWI@SHELL",
                   style: GoogleFonts.orbitron(
                     color: Colors.white.withOpacity(0.9),
-                    fontSize: 12,
+                    fontSize: 10, // Bumped up slightly for readability
                     fontWeight: FontWeight.w700,
                     letterSpacing: 1.2,
                   ),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 4), // Better separation
                 Row(
                   children: [
-                    // Glowing Green Dot
+                    // Glowing Dot
                     Container(
-                      width: 10,
-                      height: 10,
+                      width: 8, // Scaled down slightly to match font size
+                      height: 8,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: (_batteryState != BatteryState.charging)
@@ -451,7 +441,7 @@ class _HomeState extends State<Home> {
                     Text(
                       (_batteryState != BatteryState.charging)
                           ? "[OPERATIONAL]"
-                          : "[Charging]",
+                          : "[CHARGING]",
                       style: GoogleFonts.firaCode(
                         color: (_batteryState != BatteryState.charging)
                             ? Colors.greenAccent
@@ -459,16 +449,6 @@ class _HomeState extends State<Home> {
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
                         letterSpacing: 0.5,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      "///",
-                      style: GoogleFonts.firaCode(
-                        color: Colors.grey.withOpacity(0.6),
-                        fontSize: 12,
-                        fontStyle: FontStyle.italic,
-                        fontWeight: FontWeight.w900,
                       ),
                     ),
                   ],
@@ -481,7 +461,7 @@ class _HomeState extends State<Home> {
           ClipPath(
             clipper: AngledPanelClipper(),
             child: Container(
-              width: 90,
+              width: 110, // Increased from 90 to prevent text overflow
               decoration: BoxDecoration(
                 color: const Color(0xFF1A1D24),
                 border: Border(
@@ -491,29 +471,34 @@ class _HomeState extends State<Home> {
                   ),
                 ),
               ),
-              padding: const EdgeInsets.only(left: 16, right: 12),
+              padding: const EdgeInsets.only(left: 20, right: 12),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
                     children: [
                       const Icon(
                         Icons.battery_5_bar,
                         color: Colors.grey,
                         size: 14,
                       ),
+                      const SizedBox(width: 4),
                       Text(
                         "$_batteryLevel%",
-                        style: TextStyle(
+                        style: GoogleFonts.firaCode(
+                          // Added Sci-Fi font
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
                           color: (_batteryLevel > 45)
                               ? Colors.greenAccent
-                              : Color(0xFFFFB000),
+                              : const Color(0xFFFFB000),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 6),
                   GestureDetector(
                     onTap: () {
                       _showNotificationsPopup();
@@ -524,8 +509,8 @@ class _HomeState extends State<Home> {
                         Text(
                           _notificationCount.toString(),
                           style: GoogleFonts.orbitron(
-                            color: const Color(0xFFFFB000), // Amber
-                            fontSize: 16,
+                            color: const Color(0xFFFFB000),
+                            fontSize: 14,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -832,7 +817,6 @@ class _HomeState extends State<Home> {
                 title: GestureDetector(
                   child: Container(
                     height: 45,
-                    width: MediaQuery.of(context).size.width * 0.65,
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(36),
@@ -965,18 +949,12 @@ class _HomeState extends State<Home> {
                                   ((_currentTime.hour + 11) % 12 + 1)
                                       .toString()
                                       .padLeft(2, '0'),
-                                  style: GoogleFonts.doto(
+                                  style: GoogleFonts.blackOpsOne(
                                     fontSize: 80,
                                     height: 1,
 
                                     color: Colors.white,
-                                    shadows: const [
-                                      Shadow(
-                                        blurRadius: 15.0,
-                                        color: Colors.white,
-                                        offset: Offset(2, 2),
-                                      ),
-                                    ],
+
                                     letterSpacing: 15,
                                   ),
                                 ),
@@ -985,18 +963,12 @@ class _HomeState extends State<Home> {
                                     2,
                                     '0',
                                   ),
-                                  style: GoogleFonts.doto(
+                                  style: GoogleFonts.blackOpsOne(
                                     fontSize: 80,
                                     height: 1,
 
                                     color: Colors.white,
-                                    shadows: const [
-                                      Shadow(
-                                        blurRadius: 15.0,
-                                        color: Colors.white,
-                                        offset: Offset(2, 2),
-                                      ),
-                                    ],
+
                                     letterSpacing: 15,
                                   ),
                                 ),
@@ -1058,7 +1030,206 @@ class _HomeState extends State<Home> {
 
             child: Scaffold(
               backgroundColor: Colors.black,
-
+              endDrawer: Drawer(
+                backgroundColor: Colors.black,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 50,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Center(
+                        child: Text(
+                          "TERMINAL AUDIO",
+                          style: GoogleFonts.orbitron(
+                            color: Colors.lightGreen,
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 2,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 30),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 15,
+                          horizontal: 20,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withAlpha(13),
+                          borderRadius: BorderRadius.circular(15),
+                          border: Border.all(color: Colors.green.withAlpha(77)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.graphic_eq,
+                              color: Colors.greenAccent,
+                              size: 28,
+                            ),
+                            const SizedBox(width: 15),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    "NOW PLAYING",
+                                    style: GoogleFonts.firaCode(
+                                      color: Colors.grey,
+                                      fontSize: 10,
+                                      letterSpacing: 1.5,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    _currentSong,
+                                    style: GoogleFonts.firaCode(
+                                      color: Colors.white,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 30),
+                      Text(
+                        " // COMMAND INPUT",
+                        style: GoogleFonts.firaCode(
+                          color: Colors.grey,
+                          fontSize: 12,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        style: GoogleFonts.firaCode(color: Colors.white),
+                        cursorColor: Colors.lightGreenAccent,
+                        decoration: InputDecoration(
+                          filled: true,
+                          fillColor: Colors.white.withAlpha(20),
+                          hintText: "Type song name...",
+                          hintStyle: TextStyle(
+                            color: Colors.grey.withAlpha(128),
+                          ),
+                          prefixIcon: const Icon(
+                            Icons.terminal,
+                            color: Colors.lightGreenAccent,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide.none,
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide(
+                              color: Colors.white.withAlpha(26),
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(color: Colors.green),
+                          ),
+                        ),
+                        onSubmitted: (value) {
+                          if (value.isNotEmpty) {
+                            if (mounted) setState(() => _isSearching = true);
+                            _sendMusicCommand("play $value");
+                            Navigator.pop(context);
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 30),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          Column(
+                            children: [
+                              IconButton(
+                                icon: Icon(
+                                  Icons.repeat,
+                                  color: isRepeat
+                                      ? Colors.greenAccent
+                                      : Colors.white,
+                                  size: 30,
+                                ),
+                                onPressed: () {
+                                  _sendMusicCommand("repeat");
+                                  if (mounted) {
+                                    setState(() => isRepeat = !isRepeat);
+                                  }
+                                },
+                              ),
+                              Text(
+                                "LOOP",
+                                style: GoogleFonts.firaCode(
+                                  color: Colors.grey,
+                                  fontSize: 10,
+                                ),
+                              ),
+                            ],
+                          ),
+                          Column(
+                            children: [
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.stop_circle,
+                                  color: Colors.redAccent,
+                                  size: 50,
+                                ),
+                                onPressed: () => _sendMusicCommand("stop"),
+                              ),
+                              Text(
+                                "STOP",
+                                style: GoogleFonts.firaCode(
+                                  color: Colors.redAccent,
+                                  fontSize: 10,
+                                ),
+                              ),
+                            ],
+                          ),
+                          Column(
+                            children: [
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.power_settings_new,
+                                  color: Colors.grey,
+                                  size: 30,
+                                ),
+                                onPressed: () => _sendMusicCommand("kill"),
+                              ),
+                              Text(
+                                "KILL",
+                                style: GoogleFonts.firaCode(
+                                  color: Colors.grey,
+                                  fontSize: 10,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      const Spacer(),
+                      Center(
+                        child: Text(
+                          "BRIDGE STATUS: ACTIVE [TMUX]",
+                          style: GoogleFonts.firaCode(
+                            color: Colors.greenAccent.withAlpha(128),
+                            fontSize: 10,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
               body: Container(
                 width: double.maxFinite,
                 height: double.maxFinite,
@@ -1068,77 +1239,76 @@ class _HomeState extends State<Home> {
                     fit: BoxFit.cover,
                   ),
                 ),
-                child: Positioned.fill(
-                  child: Column(
-                    children: [
-                      const SizedBox(
-                        height: 40,
-                      ), // Space from the top of the screen
-                      _buildSciFiStatusBar(), // <--- Your new UI element!
-                      const SizedBox(height: 40),
-                      Text(
-                        ((_currentTime.hour + 11) % 12 + 1).toString().padLeft(
-                          2,
-                          '0',
-                        ),
-                        style: GoogleFonts.sixtyfour(
-                          fontSize: 80,
-                          height: 1,
-                          fontWeight: FontWeight.w400,
-                          color: Colors.greenAccent,
+                child: Column(
+                  children: [
+                    const SizedBox(
+                      height: 30,
+                    ), // Space from the top of the screen
+                    _buildSciFiStatusBar(), // <--- Your new UI element!
 
-                          letterSpacing: 15,
-                        ),
+                    Spacer(),
+                    Text(
+                      ((_currentTime.hour + 11) % 12 + 1).toString().padLeft(
+                        2,
+                        '0',
                       ),
-                      Text(
-                        _currentTime.minute.toString().padLeft(2, '0'),
-                        style: GoogleFonts.sixtyfour(
-                          fontSize: 80,
-                          height: 1,
+                      style: GoogleFonts.oxanium(
+                        fontSize: 80,
+                        height: 1,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.amberAccent,
 
-                          color: Colors.greenAccent,
-
-                          letterSpacing: 15,
-                        ),
+                        letterSpacing: 15,
                       ),
-                      Text(
-                        _currentTime.hour >= 12 ? 'pm' : 'am',
-                        style: GoogleFonts.poppins(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w400,
-                          color: Colors.greenAccent,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      ((_currentSong == "System Idle") ||
-                              (_currentSong == "Offline") ||
-                              (_currentSong == "Stopped"))
-                          ? const SizedBox()
-                          : SpinKitWave(color: Colors.greenAccent, size: 20.0),
+                    ),
+                    Text(
+                      _currentTime.minute.toString().padLeft(2, '0'),
+                      style: GoogleFonts.oxanium(
+                        fontSize: 80,
+                        height: 1,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.amberAccent,
 
-                      const Spacer(),
-                      Padding(
-                        padding: const EdgeInsets.all(14),
-                        child: AnimatedTextKit(
-                          key: ValueKey(_selectedQuote),
-                          animatedTexts: [
-                            FadeAnimatedText(
-                              quotes[_selectedQuote],
-                              textStyle: GoogleFonts.tiroDevanagariHindi(
-                                fontSize: 20,
-                                color: Colors.yellowAccent,
-                              ),
-                              textAlign: TextAlign.end,
-                              duration: const Duration(seconds: 5),
-                              fadeOutBegin: 0.9,
-                              fadeInEnd: 0.1,
+                        letterSpacing: 15,
+                      ),
+                    ),
+                    Text(
+                      _currentTime.hour >= 12 ? 'pm' : 'am',
+                      style: GoogleFonts.poppins(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w400,
+                        color: Colors.amberAccent,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    ((_currentSong == "System Idle") ||
+                            (_currentSong == "Offline") ||
+                            (_currentSong == "Stopped"))
+                        ? const SizedBox()
+                        : SpinKitWave(color: Colors.greenAccent, size: 20.0),
+
+                    const Spacer(),
+                    Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: AnimatedTextKit(
+                        key: ValueKey(_selectedQuote),
+                        animatedTexts: [
+                          FadeAnimatedText(
+                            quotes[_selectedQuote],
+                            textStyle: GoogleFonts.tiroDevanagariHindi(
+                              fontSize: 20,
+                              color: Colors.yellowAccent,
                             ),
-                          ],
-                          totalRepeatCount: 1,
-                        ),
+                            textAlign: TextAlign.end,
+                            duration: const Duration(seconds: 5),
+                            fadeOutBegin: 0.9,
+                            fadeInEnd: 0.1,
+                          ),
+                        ],
+                        totalRepeatCount: 1,
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -1171,37 +1341,31 @@ class _HomeState extends State<Home> {
                   context: context,
                   builder: (context) => AlertDialog(
                     title: const Text("Change Theme"),
-                    content: Expanded(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          ElevatedButton(
-                            onPressed: () {
-                              _changeTheme("minimalist");
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.black,
-                              foregroundColor: Colors.white,
-                              elevation: 16,
-                            ),
-                            child: Text("Minimalistic Theme"),
+                    content: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        ElevatedButton(
+                          onPressed: () {
+                            _changeTheme("minimalist");
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.black,
+                            foregroundColor: Colors.white,
+                            elevation: 16,
                           ),
-                          Divider(color: Colors.black),
-                          ElevatedButton(
-                            onPressed: () {
-                              _changeTheme("vibrant");
-                            },
-                            style: ElevatedButton.styleFrom(elevation: 16),
-                            child: Text("Vibrant Theme"),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    constraints: BoxConstraints(
-                      maxWidth: MediaQuery.of(context).size.width * 0.9,
-                      maxHeight: MediaQuery.of(context).size.height * 0.4,
+                          child: Text("Minimalistic Theme"),
+                        ),
+                        Divider(color: Colors.black),
+                        ElevatedButton(
+                          onPressed: () {
+                            _changeTheme("vibrant");
+                          },
+                          style: ElevatedButton.styleFrom(elevation: 16),
+                          child: Text("Vibrant Theme"),
+                        ),
+                      ],
                     ),
                   ),
                 );
