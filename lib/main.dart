@@ -347,15 +347,25 @@ class _HomeState extends State<Home> {
               ),
             ),
             child: Center(
-              child: IconButton(
-                onPressed: () async {
-                  await InstalledApps.startApp('com.google.android.youtube');
+              child: Builder(
+                // Added Builder to get the correct context for the Scaffold
+                builder: (context) {
+                  return IconButton(
+                    onPressed: () async {
+                      // Normal Tap -> Opens Termux
+                      await InstalledApps.startApp('com.termux');
+                    },
+                    onLongPress: () {
+                      // Long Press -> Opens the End Drawer (for your music player)
+                      Scaffold.of(context).openEndDrawer();
+                    },
+                    icon: const Icon(
+                      Icons.terminal,
+                      color: Colors.lightGreenAccent,
+                      size: 20,
+                    ),
+                  );
                 },
-                icon: Icon(
-                  Icons.terminal,
-                  color: Colors.lightGreenAccent,
-                  size: 20,
-                ),
               ),
             ),
           ),
@@ -478,6 +488,7 @@ class _HomeState extends State<Home> {
   Future<void> _fetchInstalledApps() async {
     try {
       final apps = await InstalledApps.getInstalledApps(
+        withIcon: true,
         excludeSystemApps: false,
         excludeNonLaunchableApps: true,
       );
@@ -1034,7 +1045,12 @@ class _HomeState extends State<Home> {
                           color: Colors.greenAccent,
                         ),
                       ),
-                      SpinKitWave(color: Colors.white, size: 20.0),
+                      const SizedBox(height: 16),
+                      ((_currentSong == "System Idle") ||
+                              (_currentSong == "Offline") ||
+                              (_currentSong == "Stopped"))
+                          ? const SizedBox()
+                          : SpinKitWave(color: Colors.greenAccent, size: 20.0),
 
                       const Spacer(),
                       Padding(
@@ -1157,6 +1173,9 @@ class _HomeState extends State<Home> {
                 itemBuilder: (context, index) {
                   final app = currentFilteredApps[index];
                   return ListTile(
+                    leading: _theme == "black_and_white"
+                        ? null
+                        : Image.memory(app.icon!, width: 50, height: 50),
                     title: Text(
                       app.name,
                       style: GoogleFonts.firaCode(
